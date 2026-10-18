@@ -30,3 +30,12 @@
   Восстановление соединения и разрешение reconnect на стороне комнаты.
 
 ИИ на выбранном клиенте, hostEpoch, миграция симуляции, атомарные игровые операции, друзья и постоянные сохранения — наша дополнительная логика поверх Colyseus. Нельзя обещать эти возможности только по факту подключения библиотеки.
+
+## Проверка при реализации T001–T005
+
+- Vite: https://vite.dev/guide/ — требования Node.js, сборка и конфигурация проекта.
+- Vue + TypeScript: https://vuejs.org/guide/typescript/overview.html — проверка SFC с vue-tsc.
+- Three.js: https://threejs.org/manual/pages/creating-a-scene.html — камера, canvas и renderer.
+- Rapier: https://rapier.rs/docs/user_guides/javascript/getting_started_js/ — начальная загрузка WASM.
+
+Версии проверены через npm registry и зафиксированы: Vue 3.5.44, Three.js 0.186.1, Rapier compat 0.21.0, Vite 8.3.4, plugin-vue 6.0.10, TypeScript 5.9.3, vue-tsc 3.3.13, Vitest 5.0.5. Совместимость подтверждена установкой, проверкой типов, тестами и сборкой; визуальная проверка ещё не выполнялась.
