@@ -13,13 +13,14 @@ function dispatch(target: EventTarget, type: string, fields: Record<string, unkn
 const cleanups: Array<() => void> = [];
 afterEach(() => { for (const cleanup of cleanups.splice(0)) cleanup(); });
 
-function setup(denyCapture = false) {
+function setup(denyCapture = false, onInventoryKey: () => boolean = () => false) {
   const win = new EventTarget();
   const doc = Object.assign(new EventTarget(), {
     pointerLockElement: null as EventTarget | null,
     exitPointerLock: () => { doc.pointerLockElement = null; dispatch(doc, 'pointerlockchange'); },
   });
   const canvas = Object.assign(new EventTarget(), {
+    focus: vi.fn(),
     requestPointerLock: vi.fn(() => {
       if (denyCapture) return Promise.reject(new Error('denied'));
       doc.pointerLockElement = canvas;
@@ -32,12 +33,41 @@ function setup(denyCapture = false) {
   const camera = new CameraController();
   const status = vi.fn();
   const pause = vi.fn(() => { input.setContext('ui'); binding.suspend(); });
-  const binding = new BrowserInput(canvas as unknown as HTMLCanvasElement, input, camera, pause, status, { window: win as unknown as Window, document: doc as unknown as Document });
+  const binding = new BrowserInput(canvas as unknown as HTMLCanvasElement, input, camera, pause, status, { window: win as unknown as Window, document: doc as unknown as Document }, onInventoryKey);
   cleanups.push(() => binding.destroy());
   return { win, doc, canvas, input, camera, status, pause, binding };
 }
 
 describe('browser event adapter using EventTarget (without a browser)', () => {
+  it('closes an inventory with Tab or Escape while UI blocks gameplay keys', () => {
+    const close = vi.fn(() => true);
+    const { win, input } = setup(false, close);
+    input.setContext('ui');
+    dispatch(win, 'keydown', { code: 'KeyG' });
+    dispatch(win, 'keydown', { code: 'Space' });
+    expect(input.consumeFrame().pressed.size).toBe(0);
+    expect(dispatch(win, 'keydown', { code: 'Tab', repeat: false }).defaultPrevented).toBe(true);
+    dispatch(win, 'keydown', { code: 'Tab', repeat: true });
+    expect(close).toHaveBeenCalledTimes(1);
+    dispatch(win, 'keydown', { code: 'Escape', repeat: false });
+    expect(close).toHaveBeenCalledTimes(2);
+  });
+
+  it('releases a locked pointer for inventory and restores canvas focus without a false pause', () => {
+    const { binding, input, doc, pause, canvas } = setup();
+    binding.toggleLock();
+    input.setContext('ui');
+    binding.suspend();
+    expect(doc.pointerLockElement).toBeNull();
+    expect(pause).not.toHaveBeenCalled();
+    expect(input.consumeFrame().pressed.size).toBe(0);
+    binding.focusCanvas();
+    expect(canvas.focus).not.toHaveBeenCalled();
+    input.setContext('gameplay');
+    binding.focusCanvas();
+    expect(canvas.focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+  });
+
   it('maps movement relative axes and separates Ctrl sprint from Shift camera lock', () => {
     const { win, input, camera } = setup();
     dispatch(win, 'keydown', { code: 'KeyW' });

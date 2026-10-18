@@ -7,7 +7,7 @@ export class GameplayView {
   private readonly firstPersonAxe = new THREE.Group();
   private readonly dummy = new THREE.Group();
   private readonly selection = new THREE.Box3Helper(new THREE.Box3(), 0xd9ed9b);
-  private readonly lootMeshes = new Map<string, THREE.Mesh>();
+  private readonly lootMeshes = new Map<string, THREE.Object3D>();
   private lootGeometry: THREE.BoxGeometry | undefined;
   private lootMaterial: THREE.MeshStandardMaterial | undefined;
 
@@ -65,9 +65,17 @@ export class GameplayView {
     for (const item of gameplay.loot) {
       let mesh = this.lootMeshes.get(item.id);
       if (!mesh) {
-        this.lootGeometry ??= new THREE.BoxGeometry(0.55, 0.22, 0.28);
-        this.lootMaterial ??= new THREE.MeshStandardMaterial({ color: 0xc69d60, roughness: 1 });
-        mesh = new THREE.Mesh(this.lootGeometry, this.lootMaterial);
+        if (item.itemId === 'axe') {
+          const axe = new THREE.Group();
+          this.buildAxe(axe);
+          axe.rotation.z = Math.PI / 2;
+          axe.scale.setScalar(0.65);
+          mesh = axe;
+        } else {
+          this.lootGeometry ??= new THREE.BoxGeometry(0.55, 0.22, 0.28);
+          this.lootMaterial ??= new THREE.MeshStandardMaterial({ color: 0xc69d60, roughness: 1 });
+          mesh = new THREE.Mesh(this.lootGeometry, this.lootMaterial);
+        }
         mesh.name = item.id;
         this.lootMeshes.set(item.id, mesh);
         this.scene.add(mesh);

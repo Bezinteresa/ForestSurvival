@@ -1,4 +1,5 @@
 import type { EntityId, Vector3Data } from './index';
+import type { InventorySnapshot, ItemStack } from './items';
 
 export type EquippedItemId = 'axe' | 'none';
 
@@ -21,10 +22,7 @@ export interface ResourceSnapshot {
   readonly exhausted: boolean;
 }
 
-export interface LootSnapshot {
-  readonly id: EntityId;
-  readonly itemId: 'wood';
-  readonly amount: number;
+export interface LootSnapshot extends ItemStack {
   readonly position: Vector3Data;
 }
 
@@ -45,6 +43,7 @@ export interface InteractionSnapshot {
 }
 
 export interface GameplaySnapshot {
+  readonly inventory: InventorySnapshot;
   readonly equippedItem: EquippedItemId;
   readonly bag: { readonly wood: number; readonly capacity: number };
   readonly resources: readonly ResourceSnapshot[];
@@ -65,7 +64,7 @@ export const AXE_CONFIG = {
   maxHeightDifference: 1.25,
 } as const;
 
-export const RESOURCE_CONFIG = { treeHealth: 100, woodPerTree: 3, pickupRange: 2.2, bagCapacity: 12 } as const;
+export const RESOURCE_CONFIG = { treeHealth: 100, woodPerTree: 3, pickupRange: 2.2 } as const;
 
 export const TRAINING_DUMMY = {
   id: 'training-dummy',

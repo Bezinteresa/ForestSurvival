@@ -112,3 +112,22 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 .touch-button:disabled { opacity: .4; cursor: default; }
 @media (any-pointer: coarse) { .resource-count { top: 139px; left: 20px; font-size: 11px; } .game-feedback { top: 180px; left: 20px; } .touch-look { bottom: 245px; } }
 @media (max-height: 560px) { .resource-count { top: 116px; left: 20px; } .game-feedback { top: 150px; left: 20px; } .touch-controls .touch-look { bottom: 110px; } .equipment-bar { bottom: 12px; } }
+
+.equipment-bar button { width: 62px; min-height: 62px; padding: 6px 3px; }
+.equipment-bar button > span, .equipment-bar button > strong { display: block; margin: 2px 0; font-size: 10px; }
+.inventory-panel { width: min(620px, calc(100% - 24px)); max-height: calc(100svh - 24px); overflow: auto; padding: 22px; border: 1px solid #71816a; border-radius: 16px; color: #eff4e9; background: #14231b; }
+.inventory-panel::backdrop { background: #08130dc9; }
+.inventory-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.inventory-heading h2 { margin: 0; font-size: 24px; }
+.inventory-help { color: #bbc9b3; font-size: 12px; line-height: 1.6; }
+.inventory-slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 18px 0; }
+.inventory-slot { display: flex; flex-direction: column; gap: 12px; min-height: 105px; padding: 12px 6px; border: 1px solid #ffffff40; border-radius: 8px; color: #eff4e9; background: #ffffff08; }
+.inventory-slot > span { font-size: 10px; }
+.inventory-slot > strong { font-size: 12px; }
+.inventory-slot.selected { border-color: #d6e5a9; background: #d6e5a920; }
+.inventory-slot.equipped { box-shadow: inset 0 -3px #d6e5a9; }
+.inventory-status { min-height: 38px; font-size: 13px; color: #e7d5a3; line-height: 1.5; }
+.inventory-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.inventory-actions button:disabled { cursor: default; }
+@media (max-width: 600px) { .inventory-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } .inventory-panel { padding: 16px; } .header-actions { gap: 6px; } .header-actions .mode-badge { display: none; } .header-actions .button { padding: 10px; min-height: 44px; } }
+@media (any-pointer: coarse) and (max-height: 560px) { .touch-actions { bottom: 84px; } .touch-controls .touch-look { bottom: 230px; top: 75px; } }

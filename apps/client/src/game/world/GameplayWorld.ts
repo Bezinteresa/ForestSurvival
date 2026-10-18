@@ -1,32 +1,51 @@
-import { AXE_CONFIG, PLAYER_CONFIG, RESOURCE_CONFIG, TEST_WORLD, TRAINING_DUMMY, type CommandResult, type DummySnapshot, type EquippedItemId, type GameplaySnapshot, type InteractionSnapshot, type LootSnapshot, type PlayerSnapshot, type TreeDefinition } from '@forest-survival/shared';
+import { AXE_CONFIG, ITEM_DEFINITIONS, PLAYER_CONFIG, RESOURCE_CONFIG, TEST_WORLD, TRAINING_DUMMY, type CommandResult, type DummySnapshot, type GameplaySnapshot, type InteractionSnapshot, type LootSnapshot, type PlayerSnapshot, type TreeDefinition, type Vector3Data } from '@forest-survival/shared';
 import { AttackController } from '../combat/AttackController';
 import { DamageReceiver } from '../combat/DamageReceiver';
 import { selectTarget, type TargetPoint, type VisibilityQueries } from '../combat/TargetQuery';
+import { Inventory } from '../items/Inventory';
+
+export interface GameplayQueries extends VisibilityQueries {
+  findDropPosition(player: PlayerSnapshot, yaw: number): Vector3Data | null;
+}
 
 export class GameplayWorld {
-  private equipped: EquippedItemId = 'axe';
   private readonly attacks = new AttackController();
   private readonly resources: Array<{ definition: TreeDefinition; receiver: DamageReceiver }>;
   private readonly dummy = new DamageReceiver(TRAINING_DUMMY.id, TRAINING_DUMMY.maxHealth);
   private readonly loot = new Map<string, LootSnapshot>();
-  private wood = 0;
   private feedback: GameplaySnapshot['feedback'] = null;
   private lastHit: GameplaySnapshot['lastHit'] = null;
   private interaction: InteractionSnapshot | null = null;
 
-  constructor(private readonly visibility: VisibilityQueries, trees: readonly TreeDefinition[] = TEST_WORLD.trees, private readonly capacity: number = RESOURCE_CONFIG.bagCapacity) {
+  constructor(private readonly visibility: GameplayQueries, trees: readonly TreeDefinition[] = TEST_WORLD.trees, private readonly inventory = new Inventory()) {
     this.resources = trees.map((definition) => ({ definition, receiver: new DamageReceiver(definition.id, RESOURCE_CONFIG.treeHealth, 'axe') }));
   }
 
-  equip(item: EquippedItemId, now: number): CommandResult {
-    if (item !== 'axe' && item !== 'none') return { accepted: false, reason: 'invalid' };
+  selectSlot(slot: number, now: number): CommandResult {
     if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
-    this.equipped = item;
+    return this.inventory.select(slot);
+  }
+
+  moveItem(from: number, to: number, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    return this.inventory.move(from, to);
+  }
+
+  drop(slot: number, player: PlayerSnapshot, yaw: number, now: number): CommandResult {
+    if (!Number.isFinite(yaw) || !Number.isInteger(slot)) return { accepted: false, reason: 'invalid' };
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    const stack = this.inventory.getStack(slot);
+    if (!stack) return { accepted: false, reason: 'missing' };
+    const position = this.visibility.findDropPosition(player, yaw);
+    if (!position || this.loot.has(stack.id)) return this.reject('blocked', 'Нет свободного места для выброса. Встаньте на землю и отойдите от препятствия.', now);
+    this.inventory.remove(slot);
+    this.loot.set(stack.id, { ...stack, position });
+    this.feedback = { kind: 'info', text: 'Выброшено: ' + ITEM_DEFINITIONS[stack.itemId].label + ' ×' + stack.amount, at: now };
     return { accepted: true };
   }
 
   useItem(requestId: string, yaw: number, now: number): CommandResult {
-    if (this.equipped === 'none') return this.reject('empty-hand', 'Выберите топор.', now);
+    if (this.inventory.equippedItem === 'none') return this.reject('empty-hand', 'Выберите топор.', now);
     if (!this.attacks.begin(requestId, yaw, now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
     return { accepted: true };
   }
@@ -64,11 +83,11 @@ export class GameplayWorld {
     const origin = this.getOrigin(player);
     if (Math.hypot(item.position.x - player.position.x, item.position.z - player.position.z) > RESOURCE_CONFIG.pickupRange || Math.abs(item.position.y - origin.y) > AXE_CONFIG.maxHeightDifference) return this.reject('out-of-range', 'Подойдите ближе.', now);
     if (!this.visibility.hasLineOfSight(origin, item.position, item.id)) return this.reject('blocked', 'Предмет закрыт препятствием.', now);
-    if (this.wood + item.amount > this.capacity) return this.reject('inventory-full', 'Рюкзак заполнен.', now);
-    this.wood += item.amount;
+    const inserted = this.inventory.insert({ id: item.id, itemId: item.itemId, amount: item.amount });
+    if (!inserted.accepted) return this.reject(inserted.reason ?? 'invalid', 'Нет места для всего стека.', now);
     this.loot.delete(id);
     if (this.interaction?.id === id) this.interaction = null;
-    this.feedback = { kind: 'pickup', text: '+' + item.amount + ' древесины', at: now };
+    this.feedback = { kind: 'pickup', text: '+' + item.amount + ' · ' + ITEM_DEFINITIONS[item.itemId].label, at: now };
     return { accepted: true };
   }
 
@@ -80,8 +99,9 @@ export class GameplayWorld {
   getSnapshot(now: number): GameplaySnapshot {
     const dummy: DummySnapshot = { id: TRAINING_DUMMY.id, position: { ...TRAINING_DUMMY.position }, health: this.dummy.currentHealth, maxHealth: this.dummy.maxHealth, dead: this.dummy.exhausted };
     return {
-      equippedItem: this.equipped,
-      bag: { wood: this.wood, capacity: this.capacity },
+      inventory: this.inventory.snapshot(),
+      equippedItem: this.inventory.equippedItem,
+      bag: { wood: this.inventory.count('wood'), capacity: this.inventory.capacityFor('wood') },
       resources: this.resources.map(({ definition, receiver }) => ({ id: definition.id, position: { ...definition.position }, radius: definition.radius, trunkHeight: definition.trunkHeight, health: receiver.currentHealth, maxHealth: receiver.maxHealth, exhausted: receiver.exhausted })),
       loot: [...this.loot.values()].map((item) => ({ ...item, position: { ...item.position } })),
       dummy,
@@ -105,7 +125,11 @@ export class GameplayWorld {
   private updateInteraction(player: PlayerSnapshot, yaw: number): void {
     const origin = this.getOrigin(player);
     const item = selectTarget([...this.loot.values()].map((loot) => ({ id: loot.id, position: loot.position, radius: 0 })), origin, yaw, RESOURCE_CONFIG.pickupRange, Math.PI * 0.48, AXE_CONFIG.maxHeightDifference, this.visibility);
-    if (item) { this.interaction = { id: item.id, kind: 'pickup', label: 'Подобрать древесину' }; return; }
+    if (item) {
+      const stack = this.loot.get(item.id)!;
+      this.interaction = { id: item.id, kind: 'pickup', label: 'Взять: ' + ITEM_DEFINITIONS[stack.itemId].label + ' ×' + stack.amount };
+      return;
+    }
     const target = this.findStrikeTarget(player, yaw);
     if (!target) { this.interaction = null; return; }
     const resource = this.resources.find((entry) => entry.definition.id === target.id);

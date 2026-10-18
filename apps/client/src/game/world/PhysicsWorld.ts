@@ -1,5 +1,5 @@
 import type { Collider, KinematicCharacterController, RigidBody, World } from '@dimforge/rapier3d-compat';
-import { PLAYER_CONFIG, SIMULATION_CONFIG, TEST_WORLD, TRAINING_DUMMY, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
+import { INVENTORY_CONFIG, PLAYER_CONFIG, SIMULATION_CONFIG, TEST_WORLD, TRAINING_DUMMY, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
 
 type Rapier = typeof import('@dimforge/rapier3d-compat')['default'];
 let rapierPromise: Promise<Rapier> | undefined;
@@ -104,6 +104,24 @@ export class PhysicsWorld {
     if (!collider) return;
     this.entityColliders.delete(id);
     this.world.removeCollider(collider, false);
+  }
+
+  findDropPosition(player: PlayerSnapshot, yaw: number): Vector3Data | null {
+    this.assertAlive();
+    if (!player.grounded || !Number.isFinite(yaw)) return null;
+    const x = player.position.x + Math.sin(yaw) * INVENTORY_CONFIG.dropDistance;
+    const z = player.position.z + Math.cos(yaw) * INVENTORY_CONFIG.dropDistance;
+    const ray = new this.rapier.Ray({ x, y: player.position.y + 0.5, z }, { x: 0, y: -1, z: 0 });
+    const ground = this.world.castRayAndGetNormal(ray, 3, true, undefined, undefined, this.playerCollider);
+    if (!ground || ground.normal.y < 0.75) return null;
+    const surfaceY = ray.origin.y - ground.timeOfImpact;
+    const feetY = player.position.y - PLAYER_CONFIG.radius - PLAYER_CONFIG.halfHeight;
+    if (Math.abs(surfaceY - feetY) > 0.35) return null;
+    const position = { x, y: surfaceY + INVENTORY_CONFIG.dropHeight, z };
+    const origin = { ...player.position, y: player.position.y + 0.15 };
+    if (!this.hasLineOfSight(origin, position)) return null;
+    const obstruction = this.world.intersectionWithShape(position, { x: 0, y: 0, z: 0, w: 1 }, new this.rapier.Cuboid(INVENTORY_CONFIG.dropHalfSize, 0.12, INVENTORY_CONFIG.dropHalfSize), undefined, undefined, this.playerCollider);
+    return obstruction ? null : position;
   }
 
   resetPlayer(): void {

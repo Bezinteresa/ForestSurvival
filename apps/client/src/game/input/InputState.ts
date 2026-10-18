@@ -1,4 +1,4 @@
-export type InputAction = 'Jump' | 'Sprint' | 'Primary' | 'Interact' | 'Inventory' | 'CameraLock' | 'Hotbar1' | 'Hotbar2' | 'Hotbar3' | 'Hotbar4' | 'Hotbar5';
+export type InputAction = 'Jump' | 'Sprint' | 'Primary' | 'Interact' | 'Inventory' | 'Drop' | 'CameraLock' | 'Hotbar1' | 'Hotbar2' | 'Hotbar3' | 'Hotbar4' | 'Hotbar5';
 export type InputContext = 'gameplay' | 'ui';
 
 export interface MoveAxis { readonly x: number; readonly y: number }

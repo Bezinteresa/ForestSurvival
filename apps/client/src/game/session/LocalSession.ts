@@ -91,7 +91,9 @@ export class LocalSession implements GameSession {
         result = Number.isFinite(command.yaw) ? this.gameplay.useItem(command.requestId, command.yaw, this.simulationTime) : { accepted: false, reason: 'invalid' };
         if (result.accepted) this.currentPlayer = { ...this.currentPlayer, yaw: command.yaw };
         break;
-      case 'equip-item': result = this.gameplay.equip(command.itemId, this.simulationTime); break;
+      case 'select-slot': result = this.gameplay.selectSlot(command.slot, this.simulationTime); break;
+      case 'move-item': result = this.gameplay.moveItem(command.from, command.to, this.simulationTime); break;
+      case 'drop-item': result = this.gameplay.drop(command.slot, this.currentPlayer, command.yaw, this.simulationTime); break;
       case 'pickup': result = this.gameplay.pickup(command.targetId, this.currentPlayer, this.simulationTime); break;
       case 'interact': result = this.gameplay.interact(this.currentPlayer, this.simulationTime, this.viewYaw); break;
       default: result = { accepted: false, reason: 'invalid' };

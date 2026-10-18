@@ -1,5 +1,6 @@
-import type { EquippedItemId, GameplaySnapshot } from './gameplay';
+import type { GameplaySnapshot } from './gameplay';
 export * from './gameplay';
+export * from './items';
 
 export type EntityId = string;
 
@@ -41,7 +42,9 @@ export interface SessionSnapshot {
 export type SessionCommand = { readonly requestId: string } & (
   | { readonly type: 'reset-player' }
   | { readonly type: 'use-item'; readonly yaw: number }
-  | { readonly type: 'equip-item'; readonly itemId: EquippedItemId }
+  | { readonly type: 'select-slot'; readonly slot: number }
+  | { readonly type: 'move-item'; readonly from: number; readonly to: number }
+  | { readonly type: 'drop-item'; readonly slot: number; readonly yaw: number }
   | { readonly type: 'pickup'; readonly targetId: string }
   | { readonly type: 'interact' }
 );

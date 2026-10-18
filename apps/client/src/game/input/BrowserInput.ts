@@ -16,7 +16,7 @@ export interface BrowserEnvironment {
 const MOVEMENT_CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 const ACTION_KEYS: Readonly<Record<string, InputAction>> = {
   Space: 'Jump', ControlLeft: 'Sprint', ControlRight: 'Sprint',
-  KeyE: 'Interact', Tab: 'Inventory',
+  KeyE: 'Interact', Tab: 'Inventory', KeyG: 'Drop',
   Digit1: 'Hotbar1', Digit2: 'Hotbar2', Digit3: 'Hotbar3', Digit4: 'Hotbar4', Digit5: 'Hotbar5',
 };
 
@@ -41,7 +41,9 @@ export class BrowserInput {
     private readonly onPause: () => void,
     private readonly onStatus: (status: ControlStatus) => void,
     private readonly environment: BrowserEnvironment = { window, document },
+    private readonly onInventoryKey: () => boolean = () => false,
   ) {
+    canvas.tabIndex = 0;
     this.listen<KeyboardEvent>(environment.window, 'keydown', this.keyDown);
     this.listen<KeyboardEvent>(environment.window, 'keyup', this.keyUp);
     this.listen<FocusEvent>(environment.document, 'focusin', (event) => { if ((event.target as Element | null)?.closest?.('input, textarea, select, [contenteditable]')) this.reset(); });
@@ -95,6 +97,10 @@ export class BrowserInput {
     this.releasePointer();
   }
 
+  focusCanvas(): void {
+    if (!this.destroyed && this.input.enabled) this.canvas.focus({ preventScroll: true });
+  }
+
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -104,6 +110,7 @@ export class BrowserInput {
   }
 
   private readonly keyDown = (event: KeyboardEvent): void => {
+    if (!this.input.enabled && (event.code === 'Tab' || event.code === 'Escape') && !event.repeat && this.onInventoryKey()) { event.preventDefault(); return; }
     if (!this.input.enabled || isUiTarget(event.target) || event.metaKey || event.altKey) return;
     if (event.repeat && !this.keys.has(event.code)) return;
     if (event.code === 'Escape') { event.preventDefault(); this.onPause(); return; }
