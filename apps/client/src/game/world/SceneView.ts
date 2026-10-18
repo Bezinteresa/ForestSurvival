@@ -1,11 +1,15 @@
 import * as THREE from 'three';
 import { TEST_WORLD } from '@forest-survival/shared';
+import { getCameraPlacement } from '../player/CameraController';
+import { resolveCameraCollision } from '../player/CameraCollision';
 import type { GameFrame, GameView } from '../core/GameView';
 
 export class SceneView implements GameView {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 150);
   private readonly player = new THREE.Group();
+  private readonly cameraObstacles: THREE.Object3D[] = [];
+  get canvas(): HTMLCanvasElement { return this.renderer.domElement; }
   private readonly debugLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x65ffe1, depthTest: false }));
   private observer: ResizeObserver | undefined;
   private destroyed = false;
@@ -47,6 +51,17 @@ export class SceneView implements GameView {
   render(frame: GameFrame): void {
     if (this.destroyed) return;
     this.player.position.set(frame.playerPosition.x, frame.playerPosition.y, frame.playerPosition.z);
+    this.player.rotation.y = frame.playerYaw;
+    const placement = getCameraPlacement(frame.playerPosition, frame.camera);
+    const position = frame.camera.firstPerson ? placement.position : resolveCameraCollision(placement.target, placement.position, this.cameraObstacles);
+    this.camera.position.set(position.x, position.y, position.z);
+    if (frame.camera.firstPerson) this.camera.lookAt(placement.target.x, placement.target.y, placement.target.z);
+    else {
+      const dx = position.x - placement.target.x, dy = position.y - placement.target.y, dz = position.z - placement.target.z;
+      if (Math.hypot(dx, dy, dz) < 0.001) this.camera.lookAt(position.x + Math.sin(frame.camera.yaw), position.y - Math.tan(frame.camera.pitch), position.z - Math.cos(frame.camera.yaw));
+      else this.camera.lookAt(placement.target.x, placement.target.y, placement.target.z);
+    }
+    this.player.visible = !frame.camera.firstPerson && this.camera.position.distanceTo(this.player.position) > 0.9;
     this.debugLines.visible = !!frame.debugGeometry;
     if (frame.debugGeometry) {
       const vertices = frame.debugGeometry.vertices;
@@ -108,6 +123,7 @@ export class SceneView implements GameView {
     const ground = this.mesh(new THREE.BoxGeometry(floor.halfSize.x * 2, floor.halfSize.y * 2, floor.halfSize.z * 2), 0x65824c);
     ground.position.set(floor.position.x, floor.position.y, floor.position.z);
     this.scene.add(ground);
+    this.cameraObstacles.push(ground);
 
     const clearing = this.mesh(new THREE.CylinderGeometry(5.8, 5.8, 0.025, 40), 0x9b9563);
     clearing.position.y = 0.014;
@@ -118,6 +134,7 @@ export class SceneView implements GameView {
       mesh.name = wall.id;
       mesh.position.set(wall.position.x, wall.position.y, wall.position.z);
       this.scene.add(mesh);
+      this.cameraObstacles.push(mesh);
     }
     for (const tree of TEST_WORLD.trees) {
       const group = new THREE.Group();
@@ -131,6 +148,7 @@ export class SceneView implements GameView {
       upperCrown.position.y = tree.trunkHeight + 1.8;
       group.add(trunk, crown, upperCrown);
       this.scene.add(group);
+      this.cameraObstacles.push(trunk, crown, upperCrown);
     }
     this.player.name = 'local-player';
     const body = this.mesh(new THREE.BoxGeometry(0.64, 0.72, 0.38), 0xc99e4d);
@@ -152,6 +170,7 @@ export class SceneView implements GameView {
     this.debugLines.renderOrder = 10;
     this.debugLines.frustumCulled = false;
     this.scene.add(this.debugLines);
+    this.scene.updateMatrixWorld(true);
   }
 
   private mesh(geometry: THREE.BufferGeometry, color: number): THREE.Mesh {

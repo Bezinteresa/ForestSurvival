@@ -39,3 +39,10 @@
 - Rapier: https://rapier.rs/docs/user_guides/javascript/getting_started_js/ — начальная загрузка WASM.
 
 Версии проверены через npm registry и зафиксированы: Vue 3.5.44, Three.js 0.186.1, Rapier compat 0.21.0, Vite 8.3.4, plugin-vue 6.0.10, TypeScript 5.9.3, vue-tsc 3.3.13, Vitest 5.0.5. Совместимость подтверждена установкой, проверкой типов, тестами и сборкой; визуальная проверка ещё не выполнялась.
+
+## Управление T006–T014
+
+- Rapier character controller: https://rapier.rs/docs/user_guides/javascript/character_controller/ — autostep, snap-to-ground, гравитация.
+- Rapier HalfSpace: https://rapier.rs/javascript3d/classes/HalfSpace.html — аналитический пол тестовой сцены.
+- Three.js Raycaster: https://threejs.org/docs/pages/Raycaster.html — геометрическая проверка препятствий камеры.
+- Pointer Lock: https://developer.mozilla.org/en-US/docs/Web/API/Element/requestPointerLock — захват после пользовательского действия, ошибки и ограничения браузера.

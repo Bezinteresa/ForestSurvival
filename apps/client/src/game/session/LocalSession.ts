@@ -1,4 +1,5 @@
-import { SIMULATION_CONFIG, type CommandResult, type PlayerSnapshot, type SessionCommand, type SessionSnapshot, type SessionStatus, type Vector3Data } from '@forest-survival/shared';
+import { NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, type PlayerControlFrame, type CommandResult, type PlayerSnapshot, type SessionCommand, type SessionSnapshot, type SessionStatus, type Vector3Data } from '@forest-survival/shared';
+import { buildPlayerMotion } from '../player/PlayerMotor';
 import { PhysicsWorld, interpolatePosition, type DebugGeometry } from '../world/PhysicsWorld';
 import type { GameSession } from './GameSession';
 
@@ -17,7 +18,7 @@ export class LocalSession implements GameSession {
   }
 
   private constructor(private readonly physics: PhysicsWorld) {
-    this.currentPlayer = physics.getPlayerSnapshot();
+    this.currentPlayer = { ...physics.getPlayerSnapshot(), yaw: Math.PI };
     this.previousPlayer = this.currentPlayer;
   }
 
@@ -33,11 +34,12 @@ export class LocalSession implements GameSession {
     this.publish();
   }
 
-  step(dt: number): void {
+  step(dt: number, input: PlayerControlFrame = NEUTRAL_PLAYER_INPUT): void {
     if (this.status !== 'running' || this.destroyed) return;
     this.previousPlayer = this.currentPlayer;
-    this.physics.step(dt);
-    this.currentPlayer = this.physics.getPlayerSnapshot();
+    const motion = buildPlayerMotion(input, this.currentPlayer.yaw, dt);
+    this.physics.step(dt, motion.displacement, motion.jump);
+    this.currentPlayer = { ...this.physics.getPlayerSnapshot(), yaw: motion.yaw };
     this.simulationTime += dt;
     this.sinceSnapshot += dt;
     if (this.sinceSnapshot + 1e-10 >= SIMULATION_CONFIG.snapshotInterval) {
@@ -67,7 +69,7 @@ export class LocalSession implements GameSession {
     if (this.destroyed || command.type !== 'reset-player' || !command.requestId || command.requestId.length > 80) return { accepted: false };
     if (this.handledRequests.has(command.requestId)) return { accepted: true, duplicate: true };
     this.physics.resetPlayer();
-    this.currentPlayer = this.physics.getPlayerSnapshot();
+    this.currentPlayer = { ...this.physics.getPlayerSnapshot(), yaw: Math.PI };
     this.previousPlayer = this.currentPlayer;
     this.handledRequests.add(command.requestId);
     if (this.handledRequests.size > 512) this.handledRequests.delete(this.handledRequests.values().next().value!);
@@ -81,6 +83,11 @@ export class LocalSession implements GameSession {
 
   getDebugGeometry(): DebugGeometry {
     return this.physics.getDebugGeometry();
+  }
+
+  getRenderYaw(alpha: number): number {
+    const delta = Math.atan2(Math.sin(this.currentPlayer.yaw - this.previousPlayer.yaw), Math.cos(this.currentPlayer.yaw - this.previousPlayer.yaw));
+    return this.previousPlayer.yaw + delta * Math.max(0, Math.min(1, alpha));
   }
 
   destroy(): void {

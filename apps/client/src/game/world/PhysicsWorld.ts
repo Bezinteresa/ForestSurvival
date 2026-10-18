@@ -42,7 +42,11 @@ export class PhysicsWorld {
 
   private constructor(rapier: Rapier, private readonly world: World) {
     world.timestep = SIMULATION_CONFIG.fixedStep;
-    for (const box of [TEST_WORLD.ground, ...TEST_WORLD.walls]) {
+    // An analytical plane avoids capsule/large-cuboid normal jitter on this flat test map.
+    // The perimeter walls keep the playable area inside the visible floor.
+    const floorY = TEST_WORLD.ground.position.y + TEST_WORLD.ground.halfSize.y;
+    world.createCollider(new rapier.ColliderDesc(new rapier.HalfSpace({ x: 0, y: 1, z: 0 })).setTranslation(0, floorY, 0));
+    for (const box of TEST_WORLD.walls) {
       world.createCollider(rapier.ColliderDesc.cuboid(box.halfSize.x, box.halfSize.y, box.halfSize.z).setTranslation(box.position.x, box.position.y, box.position.z));
     }
     for (const tree of TEST_WORLD.trees) {
@@ -54,13 +58,16 @@ export class PhysicsWorld {
     this.controller = world.createCharacterController(PLAYER_CONFIG.collisionOffset);
     this.controller.setMaxSlopeClimbAngle(Math.PI / 4);
     this.controller.setMinSlopeSlideAngle(Math.PI / 3);
+    this.controller.enableAutostep(PLAYER_CONFIG.stepHeight, 0.2, false);
+    this.controller.enableSnapToGround(0.2);
     world.step();
   }
 
-  step(dt: number, displacement: Readonly<{ x: number; z: number }> = { x: 0, z: 0 }): void {
+  step(dt: number, displacement: Readonly<{ x: number; z: number }> = { x: 0, z: 0 }, jump = false): void {
     this.assertAlive();
     if (!Number.isFinite(dt) || dt <= 0 || dt > SIMULATION_CONFIG.maxFrameDelta) throw new Error('Invalid physics timestep');
     if (!Number.isFinite(displacement.x) || !Number.isFinite(displacement.z)) throw new Error('Invalid displacement');
+    if (jump && this.grounded) this.verticalVelocity = PLAYER_CONFIG.jumpSpeed;
     this.verticalVelocity = Math.max(-SIMULATION_CONFIG.terminalVelocity, this.verticalVelocity + SIMULATION_CONFIG.gravity * dt);
     this.controller.computeColliderMovement(this.playerCollider, { x: displacement.x, y: this.verticalVelocity * dt, z: displacement.z });
     const movement = this.controller.computedMovement();
@@ -69,10 +76,11 @@ export class PhysicsWorld {
     this.world.timestep = dt;
     this.world.step();
     this.grounded = this.controller.computedGrounded();
+    if (this.verticalVelocity > 0 && movement.y < this.verticalVelocity * dt - 0.001) this.verticalVelocity = 0;
     if (this.grounded) this.verticalVelocity = 0;
   }
 
-  getPlayerSnapshot(): PlayerSnapshot {
+  getPlayerSnapshot(): Omit<PlayerSnapshot, 'yaw'> {
     this.assertAlive();
     const position = this.player.translation();
     return { id: PLAYER_CONFIG.id, position: { x: position.x, y: position.y, z: position.z }, grounded: this.grounded };

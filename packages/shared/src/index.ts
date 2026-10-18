@@ -12,7 +12,19 @@ export interface PlayerSnapshot {
   readonly id: EntityId;
   readonly position: Vector3Data;
   readonly grounded: boolean;
+  readonly yaw: number;
 }
+
+export interface PlayerControlFrame {
+  readonly moveX: number;
+  readonly moveY: number;
+  readonly cameraYaw: number;
+  readonly faceCamera: boolean;
+  readonly sprint: boolean;
+  readonly jump: boolean;
+}
+
+export const NEUTRAL_PLAYER_INPUT: PlayerControlFrame = { moveX: 0, moveY: 0, cameraYaw: 0, faceCamera: false, sprint: false, jump: false };
 
 export interface SessionSnapshot {
   readonly schemaVersion: 1;
@@ -47,6 +59,11 @@ export const PLAYER_CONFIG = {
   radius: 0.35,
   halfHeight: 0.55,
   collisionOffset: 0.02,
+  walkSpeed: 4.2,
+  runSpeed: 6.5,
+  jumpSpeed: 7,
+  turnSpeed: 12,
+  stepHeight: 0.28,
 } as const;
 
 export interface BoxDefinition {
@@ -65,6 +82,7 @@ export interface TreeDefinition {
 export const TEST_WORLD = {
   ground: { id: 'ground', position: { x: 0, y: -0.3, z: 0 }, halfSize: { x: 22, y: 0.3, z: 22 } },
   walls: [
+    { id: 'low-step', position: { x: -2, y: 0.1, z: 0 }, halfSize: { x: 0.5, y: 0.1, z: 1 } },
     { id: 'wall-east', position: { x: 4, y: 1, z: 0 }, halfSize: { x: 0.3, y: 1, z: 3 } },
     { id: 'wall-north', position: { x: -4, y: 0.7, z: -5 }, halfSize: { x: 3, y: 0.7, z: 0.35 } },
     { id: 'border-east', position: { x: 20, y: 1, z: 0 }, halfSize: { x: 0.3, y: 1, z: 20 } },

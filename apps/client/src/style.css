@@ -69,3 +69,30 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
   .welcome-panel { margin-top: 2vh; padding-top: 0; }
   .welcome-panel h1 { font-size: 36px; }
 }
+
+/* Controls stay clear of the playable center on desktop and touch screens. */
+.header-actions { display: flex; gap: 10px; align-items: center; pointer-events: auto; }
+.play-readings { position: absolute; left: 36px; top: 110px; z-index: 1; display: flex; gap: 12px; flex-wrap: wrap; padding: 10px 14px; background: #102017db; border-radius: 12px; font-size: 11px; }
+.crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; color: #ffffffc4; font-size: 22px; text-shadow: 0 1px 3px #14231b; }
+.control-message { position: absolute; z-index: 3; top: 150px; left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 40px)); background: #14231be6; border-radius: 10px; padding: 12px; font-size: 12px; text-align: center; }
+.pause-backdrop { position: absolute; inset: 0; background: #08130da3; z-index: 2; }
+.prototype.playing .scene-panel { position: absolute; z-index: 3; left: 50%; top: 50%; bottom: auto; transform: translate(-50%, -50%); margin: 0; max-height: calc(100svh - 100px); overflow-y: auto; width: min(400px, calc(100% - 32px)); }
+.settings-panel { margin-top: 20px; font-size: 12px; color: #d7e1d0; }
+.settings-panel summary { cursor: pointer; }
+.settings-panel label { display: block; margin-top: 18px; }
+.settings-panel input[type=range] { width: 100%; display: block; margin-top: 12px; accent-color: #d6e5a9; }
+.settings-panel .checkbox-label { display: flex; align-items: center; gap: 8px; }
+.settings-panel p { font-size: 11px; line-height: 1.5; }
+.touch-controls { display: none; position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.touch-look { position: absolute; top: 190px; right: 0; bottom: 150px; width: 65%; pointer-events: auto; touch-action: none; }
+.touch-stick { position: absolute; left: max(24px, env(safe-area-inset-left)); bottom: max(70px, env(safe-area-inset-bottom)); width: 116px; height: 116px; border-radius: 50%; border: 2px solid #ffffff65; background: #12271c44; pointer-events: auto; touch-action: none; }
+.touch-stick > span { position: absolute; left: 34px; top: 34px; width: 44px; height: 44px; background: #e6efc7b0; border-radius: 50%; pointer-events: none; }
+.touch-actions { position: absolute; right: max(24px, env(safe-area-inset-right)); bottom: max(70px, env(safe-area-inset-bottom)); display: flex; gap: 12px; align-items: flex-end; }
+.touch-camera { position: absolute; right: max(20px, env(safe-area-inset-right)); top: 135px; display: flex; gap: 8px; }
+.touch-button { pointer-events: auto; touch-action: none; user-select: none; width: 64px; height: 64px; border: 1px solid #ffffff80; border-radius: 50%; color: #f0f4e9; background: #13261cc4; font-size: 12px; }
+.touch-button.jump { width: 78px; height: 78px; }
+.touch-button.small { width: 44px; height: 44px; font-size: 11px; }
+.touch-button.selected { background: #d6e5a9; color: #1d301e; }
+.scene canvas { touch-action: none; }
+@media (any-pointer: coarse) { .touch-controls { display: block; } .play-readings { top: 85px; left: 20px; } .playing .bottom-note { display: none; } }
+@media (max-height: 560px) { .touch-look { top: 90px; bottom: 100px; } .touch-stick, .touch-actions { bottom: 24px; } .touch-camera { top: 82px; } .play-readings { top: 72px; left: 20px; } }
