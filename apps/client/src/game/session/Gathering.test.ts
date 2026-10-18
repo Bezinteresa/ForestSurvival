@@ -81,7 +81,8 @@ describe('complete gathering flow with real Rapier', () => {
     const physics = await PhysicsWorld.create();
     resources.push(physics);
     expect(physics.hasLineOfSight({ x: 3, y: 1, z: 0 }, { x: 5, y: 1, z: 0 })).toBe(false);
-    expect(physics.hasLineOfSight({ x: 3, y: 1, z: 4 }, { x: 5, y: 1, z: 4 })).toBe(true);
+    // Keep the clear path outside the new stone node at (2.5, 4).
+    expect(physics.hasLineOfSight({ x: 3, y: 1, z: 4.8 }, { x: 5, y: 1, z: 4.8 })).toBe(true);
     const origin = { x: -2.6, y: 1, z: 3 }, target = { x: -4, y: 1.2, z: 3 };
     expect(physics.hasLineOfSight(origin, target)).toBe(false);
     expect(physics.hasLineOfSight(origin, target, 'tree-01')).toBe(true);

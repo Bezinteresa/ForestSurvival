@@ -1,5 +1,5 @@
 import type { Collider, KinematicCharacterController, RigidBody, World } from '@dimforge/rapier3d-compat';
-import { INVENTORY_CONFIG, PLAYER_CONFIG, SIMULATION_CONFIG, TEST_WORLD, TRAINING_DUMMY, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
+import { CAMP_STORAGE, INVENTORY_CONFIG, PLAYER_CONFIG, SIMULATION_CONFIG, TEST_WORLD, TEST_MATERIAL_NODES, TRAINING_DUMMY, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
 
 type Rapier = typeof import('@dimforge/rapier3d-compat')['default'];
 let rapierPromise: Promise<Rapier> | undefined;
@@ -54,6 +54,11 @@ export class PhysicsWorld {
       this.entityColliders.set(tree.id, world.createCollider(rapier.ColliderDesc.cylinder(tree.trunkHeight / 2, tree.radius).setTranslation(tree.position.x, tree.position.y + tree.trunkHeight / 2, tree.position.z)));
     }
     this.entityColliders.set(TRAINING_DUMMY.id, world.createCollider(rapier.ColliderDesc.cuboid(TRAINING_DUMMY.radius, TRAINING_DUMMY.height / 2, TRAINING_DUMMY.radius).setTranslation(TRAINING_DUMMY.position.x, TRAINING_DUMMY.height / 2, TRAINING_DUMMY.position.z)));
+    for (const node of TEST_MATERIAL_NODES) {
+      this.entityColliders.set(node.id, world.createCollider(rapier.ColliderDesc.cylinder(node.height / 2, node.radius).setTranslation(node.position.x, node.position.y + node.height / 2, node.position.z)));
+    }
+    const storage = CAMP_STORAGE;
+    this.entityColliders.set(storage.id, world.createCollider(rapier.ColliderDesc.cuboid(storage.halfSize.x, storage.halfSize.y, storage.halfSize.z).setTranslation(storage.position.x, storage.position.y, storage.position.z)));
     const spawn = PLAYER_CONFIG.spawn;
     this.player = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y, spawn.z));
     this.playerCollider = world.createCollider(rapier.ColliderDesc.capsule(PLAYER_CONFIG.halfHeight, PLAYER_CONFIG.radius), this.player);

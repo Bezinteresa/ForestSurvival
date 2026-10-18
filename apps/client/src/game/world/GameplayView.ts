@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TRAINING_DUMMY } from '@forest-survival/shared';
+import { CAMP_STORAGE, TEST_MATERIAL_NODES, TRAINING_DUMMY, isTool, type ToolId, type MaterialId } from '@forest-survival/shared';
 import type { GameFrame } from '../core/GameView';
 
 export class GameplayView {
@@ -9,7 +9,7 @@ export class GameplayView {
   private readonly selection = new THREE.Box3Helper(new THREE.Box3(), 0xd9ed9b);
   private readonly lootMeshes = new Map<string, THREE.Object3D>();
   private lootGeometry: THREE.BoxGeometry | undefined;
-  private lootMaterial: THREE.MeshStandardMaterial | undefined;
+  private readonly lootMaterials = new Map<MaterialId, THREE.MeshStandardMaterial>();
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -34,13 +34,34 @@ export class GameplayView {
     this.dummy.position.set(TRAINING_DUMMY.position.x, 0, TRAINING_DUMMY.position.z);
     scene.add(this.dummy);
     this.cameraObstacles.push(body, head);
+    for (const node of TEST_MATERIAL_NODES) {
+      const group = new THREE.Group();
+      group.position.set(node.position.x, node.position.y, node.position.z);
+      const geometry = node.kind === 'rock' ? new THREE.DodecahedronGeometry(1, 0) : new THREE.BoxGeometry(1.4, 2, 1.1);
+      const body = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: node.kind === 'rock' ? 0x7c8588 : 0x8d6250, roughness: 0.9, metalness: node.kind === 'rock' ? 0 : 0.4 }));
+      body.scale.set(node.radius, node.height / 2, node.radius);
+      body.position.y = node.height / 2;
+      group.add(body);
+      scene.add(group);
+      this.trees.set(node.id, group);
+      this.cameraObstacles.push(body);
+    }
+    const storage = CAMP_STORAGE;
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(storage.halfSize.x * 2, storage.halfSize.y * 2, storage.halfSize.z * 2), new THREE.MeshStandardMaterial({ color: 0x9f854f, roughness: 1 }));
+    crate.position.set(storage.position.x, storage.position.y, storage.position.z);
+    scene.add(crate);
+    this.cameraObstacles.push(crate);
     this.selection.visible = false;
     scene.add(this.selection);
   }
 
   update(frame: GameFrame): void {
     const gameplay = frame.gameplay;
-    const hasAxe = gameplay.equippedItem === 'axe';
+    const hasAxe = gameplay.equippedItem !== 'none';
+    if (gameplay.equippedItem !== 'none') {
+      this.shapeTool(this.axe, gameplay.equippedItem);
+      this.shapeTool(this.firstPersonAxe, gameplay.equippedItem);
+    }
     this.axe.visible = hasAxe && !frame.camera.firstPerson;
     this.firstPersonAxe.visible = hasAxe && frame.camera.firstPerson;
     const progress = gameplay.attack.progress;
@@ -65,16 +86,21 @@ export class GameplayView {
     for (const item of gameplay.loot) {
       let mesh = this.lootMeshes.get(item.id);
       if (!mesh) {
-        if (item.itemId === 'axe') {
+        if (isTool(item.itemId)) {
           const axe = new THREE.Group();
           this.buildAxe(axe);
+          this.shapeTool(axe, item.itemId);
           axe.rotation.z = Math.PI / 2;
           axe.scale.setScalar(0.65);
           mesh = axe;
         } else {
           this.lootGeometry ??= new THREE.BoxGeometry(0.55, 0.22, 0.28);
-          this.lootMaterial ??= new THREE.MeshStandardMaterial({ color: 0xc69d60, roughness: 1 });
-          mesh = new THREE.Mesh(this.lootGeometry, this.lootMaterial);
+          let material = this.lootMaterials.get(item.itemId);
+          if (!material) {
+            material = new THREE.MeshStandardMaterial({ color: { wood: 0xc69d60, stone: 0x9aa5aa, scrap: 0xb7785b }[item.itemId], roughness: 1 });
+            this.lootMaterials.set(item.itemId, material);
+          }
+          mesh = new THREE.Mesh(this.lootGeometry, material);
         }
         mesh.name = item.id;
         this.lootMeshes.set(item.id, mesh);
@@ -86,9 +112,11 @@ export class GameplayView {
 
     const selected = gameplay.interaction;
     this.selection.visible = !!selected;
-    if (selected?.kind === 'tree') {
+    if (selected?.kind === 'tree' || selected?.kind === 'resource') {
       const resource = gameplay.resources.find((entry) => entry.id === selected.id);
       if (resource) this.selection.box.setFromCenterAndSize(new THREE.Vector3(resource.position.x, resource.trunkHeight / 2, resource.position.z), new THREE.Vector3(resource.radius * 2 + 0.1, resource.trunkHeight, resource.radius * 2 + 0.1));
+    } else if (selected?.kind === 'storage') {
+      this.selection.box.setFromCenterAndSize(new THREE.Vector3(CAMP_STORAGE.position.x, CAMP_STORAGE.position.y, CAMP_STORAGE.position.z), new THREE.Vector3(1.3, 1.1, 0.9));
     } else if (selected?.kind === 'dummy') {
       this.selection.box.setFromCenterAndSize(new THREE.Vector3(TRAINING_DUMMY.position.x, 0.9, TRAINING_DUMMY.position.z), new THREE.Vector3(0.9, 1.8, 0.6));
     } else if (selected?.kind === 'pickup') {
@@ -104,10 +132,18 @@ export class GameplayView {
     }
   }
 
+  private shapeTool(root: THREE.Group, tool: ToolId): void {
+    const head = root.getObjectByName('tool-head');
+    if (!head) return;
+    head.scale.set(tool === 'pickaxe' ? 2 : 1, tool === 'pickaxe' ? 0.4 : 1, 1);
+    head.position.x = tool === 'pickaxe' ? 0 : 0.12;
+  }
+
   private buildAxe(root: THREE.Group): void {
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.8, 7), new THREE.MeshStandardMaterial({ color: 0x765033, roughness: 1 }));
     handle.position.y = 0.2;
     const blade = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.23, 0.12), new THREE.MeshStandardMaterial({ color: 0xbac2c4, roughness: 0.65, metalness: 0.2 }));
+    blade.name = 'tool-head';
     blade.position.set(0.12, 0.55, 0);
     root.add(handle, blade);
   }

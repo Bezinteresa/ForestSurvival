@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef } from 'vue';
-import { ITEM_DEFINITIONS, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
+import { itemLabel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
 import type { Game } from './game/core/Game';
 import type { InputState } from './game/input/InputState';
 import type { ControlStatus } from './game/input/BrowserInput';
@@ -31,6 +31,11 @@ const gameplay = computed(() => snapshot.value?.gameplay);
 const feedback = computed(() => {
   const message = gameplay.value?.feedback;
   return message && (snapshot.value?.simulationTime ?? 0) - message.at < 1.6 ? message.text : '';
+});
+const materials = computed(() => {
+  const totals = { wood: 0, stone: 0, scrap: 0 };
+  for (const stack of gameplay.value?.inventory.slots ?? []) if (stack && (stack.itemId === 'wood' || stack.itemId === 'stone' || stack.itemId === 'scrap')) totals[stack.itemId] += stack.amount;
+  return totals;
 });
 const paused = computed(() => snapshot.value?.status === 'paused');
 const elapsed = computed(() => {
@@ -109,7 +114,15 @@ function resetPosition(): void {
 }
 
 function reportInventory(result?: CommandResult): void {
-  inventoryNote.value = result?.accepted ? 'Готово.' : result?.reason === 'busy' ? 'Дождитесь завершения удара.' : result?.reason === 'inventory-full' ? 'Стек назначения заполнен.' : result?.reason === 'blocked' ? 'Нет места для выброса. Встаньте на землю и отойдите от препятствия.' : 'Операция недоступна.';
+  const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = {
+    busy: 'Дождитесь завершения удара.',
+    'inventory-full': 'Нет места для всего стека.',
+    blocked: 'Нет места для выброса. Встаньте на землю и отойдите от препятствия.',
+    'out-of-range': 'Подойдите к складу.',
+    stale: 'Слот изменился. Выберите предмет заново.',
+    forbidden: 'Режим разработки отключён.',
+  };
+  inventoryNote.value = result?.accepted ? 'Готово.' : result?.reason ? messages[result.reason] ?? 'Операция недоступна.' : 'Операция недоступна.';
 }
 
 function selectSlot(slot: number): void { reportInventory(game?.sendCommand({ type: 'select-slot', slot, requestId: 'ui-' + (++requestNumber) })); }
@@ -118,6 +131,13 @@ function dropItem(slot: number): void {
   const cameraYaw = game?.camera.cameraYaw ?? 0;
   reportInventory(game?.sendCommand({ type: 'drop-item', slot, yaw: Math.atan2(Math.sin(cameraYaw), -Math.cos(cameraYaw)), requestId: 'ui-' + (++requestNumber) }));
 }
+
+function transferItem(direction: 'deposit' | 'withdraw', slot: number): void {
+  const container = direction === 'deposit' ? gameplay.value?.inventory : gameplay.value?.storage.inventory;
+  const stack = container?.slots[slot];
+  if (stack) reportInventory(game?.sendCommand({ type: 'transfer-item', direction, slot, expectedItemId: stack.id, requestId: 'ui-' + (++requestNumber) }));
+}
+function debugUpgrade(target: 'tool' | 'backpack', slot: number): void { reportInventory(game?.sendCommand({ type: 'debug-upgrade', target, slot, level: 2, requestId: 'ui-' + (++requestNumber) })); }
 
 function changeSensitivity(key: 'mouseSensitivity' | 'touchSensitivity', event: Event): void {
   updateSettings({ ...settings.value, [key]: (event.target as HTMLInputElement).valueAsNumber });
@@ -153,19 +173,19 @@ onBeforeUnmount(() => { disposed = true; stop(); });
     <div v-if="active && !paused" class="play-readings"><span>{{ elapsed }}</span><span>{{ snapshot?.player.grounded ? 'На земле' : 'В воздухе' }}</span><span>{{ controls.firstPerson ? 'Первое лицо' : controls.cameraLocked ? 'Камера фиксирована' : 'Третье лицо' }}</span></div>
     <div v-if="active && !paused && !inventoryOpen" class="crosshair" aria-hidden="true">+</div>
     <p v-if="active && !paused && controls.message" class="control-message" role="status">{{ controls.message }}</p>
-    <div v-if="active && !paused && gameplay" class="resource-count">Древесина <strong>{{ gameplay.bag.wood }} / {{ gameplay.bag.capacity }}</strong></div>
+    <div v-if="active && !paused && gameplay" class="resource-count">Ресурсы <strong>{{ materials.wood }} дер. · {{ materials.stone }} кам. · {{ materials.scrap }} мет.</strong><span>Слоты {{ gameplay.inventory.slots.filter(Boolean).length }} / {{ gameplay.inventory.slots.length }}</span></div>
     <div v-if="active && !paused && !inventoryOpen && gameplay?.interaction" class="target-hint">
       <strong>{{ gameplay.interaction.label }}</strong>
       <template v-if="gameplay.interaction.health !== undefined"><span>{{ gameplay.interaction.health }} / {{ gameplay.interaction.maxHealth }}</span><progress :value="gameplay.interaction.health" :max="gameplay.interaction.maxHealth" /></template>
-      <span>{{ gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
+      <span>{{ gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
     </div>
     <p v-if="active && !paused && feedback" class="game-feedback" role="status">{{ feedback }}</p>
     <div v-if="active && !paused && !inventoryOpen && gameplay" class="equipment-bar" data-ui>
-      <button v-for="(item, slot) in gameplay.inventory.slots" :key="slot" :class="{ selected: gameplay.inventory.activeSlot === slot }" :aria-pressed="gameplay.inventory.activeSlot === slot" @pointerdown.prevent @click="selectSlot(slot)"><span>{{ slot + 1 }}</span><strong>{{ item ? ITEM_DEFINITIONS[item.itemId].label : 'Пусто' }}</strong><span v-if="item">×{{ item.amount }}</span></button>
+      <button v-for="(item, slot) in gameplay.inventory.slots.slice(0, 5)" :key="slot" :class="{ selected: gameplay.inventory.activeSlot === slot }" :aria-pressed="gameplay.inventory.activeSlot === slot" @pointerdown.prevent @click="selectSlot(slot)"><span>{{ slot + 1 }}</span><strong>{{ item ? itemLabel(item) : 'Пусто' }}</strong><span v-if="item">×{{ item.amount }}</span></button>
       <progress v-if="gameplay.attack.phase !== 'idle'" :value="gameplay.attack.progress" max="1" aria-label="Восстановление после удара" />
     </div>
-    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="!paused && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="gameplay?.interaction?.kind === 'pickup'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
-    <InventoryPanel v-if="active && !paused && inventoryOpen && gameplay" :inventory="gameplay.inventory" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" />
+    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="!paused && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="gameplay?.interaction?.kind === 'pickup' || gameplay?.interaction?.kind === 'storage'" :interaction-label="gameplay?.interaction?.kind === 'storage' ? 'Склад' : 'Взять'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
+    <InventoryPanel v-if="active && !paused && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
     <div v-if="active && paused" class="pause-backdrop" />
     <section v-if="active && paused" class="scene-panel" aria-label="Меню паузы" data-ui>
       <p class="eyebrow">ТЕСТОВАЯ ПОЛЯНА</p>

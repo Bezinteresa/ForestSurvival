@@ -131,3 +131,9 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 .inventory-actions button:disabled { cursor: default; }
 @media (max-width: 600px) { .inventory-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } .inventory-panel { padding: 16px; } .header-actions { gap: 6px; } .header-actions .mode-badge { display: none; } .header-actions .button { padding: 10px; min-height: 44px; } }
 @media (any-pointer: coarse) and (max-height: 560px) { .touch-actions { bottom: 84px; } .touch-controls .touch-look { bottom: 230px; top: 75px; } }
+
+.resource-count > span { display: block; margin-top: 6px; color: #bdcbb4; }
+.storage-section { margin-top: 24px; padding-top: 16px; border-top: 1px solid #ffffff30; }
+.storage-section h3 { font-size: 15px; margin: 0; }
+.debug-upgrades { margin-top: 20px; color: #e3bf83; font-size: 12px; }
+.debug-upgrades summary { cursor: pointer; margin-bottom: 12px; }

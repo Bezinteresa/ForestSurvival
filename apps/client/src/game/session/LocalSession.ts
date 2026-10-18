@@ -1,4 +1,4 @@
-import { NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, type PlayerControlFrame, type CommandResult, type PlayerSnapshot, type SessionCommand, type SessionSnapshot, type SessionStatus, type Vector3Data } from '@forest-survival/shared';
+import { NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, TEST_MATERIAL_NODES, TEST_WORLD, type PlayerControlFrame, type CommandResult, type PlayerSnapshot, type SessionCommand, type SessionSnapshot, type SessionStatus, type Vector3Data } from '@forest-survival/shared';
 import { buildPlayerMotion } from '../player/PlayerMotor';
 import { GameplayWorld } from '../world/GameplayWorld';
 import { PhysicsWorld, interpolatePosition, type DebugGeometry } from '../world/PhysicsWorld';
@@ -16,14 +16,14 @@ export class LocalSession implements GameSession {
   private viewYaw = Math.PI;
   private destroyed = false;
 
-  static async create(): Promise<LocalSession> {
-    return new LocalSession(await PhysicsWorld.create());
+  static async create(options: { debugTools?: boolean } = {}): Promise<LocalSession> {
+    return new LocalSession(await PhysicsWorld.create(), options.debugTools ?? false);
   }
 
-  private constructor(private readonly physics: PhysicsWorld) {
+  private constructor(private readonly physics: PhysicsWorld, debugTools: boolean) {
     this.currentPlayer = { ...physics.getPlayerSnapshot(), yaw: Math.PI };
     this.previousPlayer = this.currentPlayer;
-    this.gameplay = new GameplayWorld(physics);
+    this.gameplay = new GameplayWorld(physics, TEST_WORLD.trees, undefined, TEST_MATERIAL_NODES, debugTools);
     this.gameplay.update(0, this.currentPlayer, this.viewYaw);
   }
 
@@ -94,6 +94,8 @@ export class LocalSession implements GameSession {
       case 'select-slot': result = this.gameplay.selectSlot(command.slot, this.simulationTime); break;
       case 'move-item': result = this.gameplay.moveItem(command.from, command.to, this.simulationTime); break;
       case 'drop-item': result = this.gameplay.drop(command.slot, this.currentPlayer, command.yaw, this.simulationTime); break;
+      case 'transfer-item': result = this.gameplay.transfer(command.direction, command.slot, command.expectedItemId, this.currentPlayer, this.simulationTime); break;
+      case 'debug-upgrade': result = this.gameplay.debugUpgrade(command.target, command.slot, command.level, this.simulationTime); break;
       case 'pickup': result = this.gameplay.pickup(command.targetId, this.currentPlayer, this.simulationTime); break;
       case 'interact': result = this.gameplay.interact(this.currentPlayer, this.simulationTime, this.viewYaw); break;
       default: result = { accepted: false, reason: 'invalid' };

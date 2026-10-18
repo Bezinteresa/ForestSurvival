@@ -1,19 +1,36 @@
-export type ItemId = 'axe' | 'wood';
+export type ToolId = 'axe' | 'pickaxe';
+export type MaterialId = 'wood' | 'stone' | 'scrap';
+export type ItemId = ToolId | MaterialId;
+export type UpgradeLevel = 1 | 2;
 
 export const ITEM_DEFINITIONS = {
   axe: { label: 'Топор', stackLimit: 1 },
+  pickaxe: { label: 'Кирка', stackLimit: 1 },
   wood: { label: 'Древесина', stackLimit: 3 },
+  stone: { label: 'Камень', stackLimit: 3 },
+  scrap: { label: 'Металлолом', stackLimit: 3 },
 } as const satisfies Record<ItemId, { label: string; stackLimit: number }>;
+
+export function isTool(itemId: ItemId): itemId is ToolId { return itemId === 'axe' || itemId === 'pickaxe'; }
+export function itemLabel(stack: ItemStack): string { return ITEM_DEFINITIONS[stack.itemId].label + (isTool(stack.itemId) ? ' · ур. ' + (stack.level ?? 1) : ''); }
 
 export interface ItemStack {
   readonly id: string;
   readonly itemId: ItemId;
   readonly amount: number;
+  readonly level?: UpgradeLevel;
 }
 
 export interface InventorySnapshot {
   readonly slots: readonly (ItemStack | null)[];
   readonly activeSlot: number;
+  readonly level: UpgradeLevel;
 }
 
-export const INVENTORY_CONFIG = { slotCount: 5, dropDistance: 1.2, dropHalfSize: 0.3, dropHeight: 0.23 } as const;
+export const BACKPACK_LEVELS = { 1: 5, 2: 8 } as const;
+export const TOOL_LEVELS = {
+  1: { damageMultiplier: 1, windup: 0.18, recovery: 0.47 },
+  2: { damageMultiplier: 2, windup: 0.18, recovery: 0.35 },
+} as const;
+export const TOOL_DAMAGE = { axe: 25, pickaxe: 30 } as const;
+export const INVENTORY_CONFIG = { slotCount: BACKPACK_LEVELS[1], hotbarCount: 5, dropDistance: 1.2, dropHalfSize: 0.3, dropHeight: 0.23 } as const;

@@ -1,6 +1,7 @@
 import type { GameplaySnapshot } from './gameplay';
 export * from './gameplay';
 export * from './items';
+export * from './resources';
 
 export type EntityId = string;
 
@@ -45,6 +46,8 @@ export type SessionCommand = { readonly requestId: string } & (
   | { readonly type: 'select-slot'; readonly slot: number }
   | { readonly type: 'move-item'; readonly from: number; readonly to: number }
   | { readonly type: 'drop-item'; readonly slot: number; readonly yaw: number }
+  | { readonly type: 'transfer-item'; readonly direction: 'deposit' | 'withdraw'; readonly slot: number; readonly expectedItemId: string }
+  | { readonly type: 'debug-upgrade'; readonly target: 'tool' | 'backpack'; readonly slot: number; readonly level: 2 }
   | { readonly type: 'pickup'; readonly targetId: string }
   | { readonly type: 'interact' }
 );
@@ -52,7 +55,7 @@ export type SessionCommand = { readonly requestId: string } & (
 export interface CommandResult {
   readonly accepted: boolean;
   readonly duplicate?: boolean;
-  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid';
+  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale';
 }
 
 export const SIMULATION_CONFIG = {

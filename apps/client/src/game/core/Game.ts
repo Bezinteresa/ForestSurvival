@@ -22,7 +22,7 @@ export class Game {
   private readonly cleanups: Array<() => void> = [];
 
   static async create(host: HTMLElement, onSnapshot: (snapshot: SessionSnapshot) => void, onError: (error: unknown) => void, signal: AbortSignal, controls?: { settings: ControlSettings; onStatus: (status: ControlStatus) => void; onInventoryChange?: (open: boolean) => void }): Promise<Game> {
-    const session = await LocalSession.create();
+    const session = await LocalSession.create({ debugTools: import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEBUG_TOOLS === 'true' });
     if (signal.aborted) {
       session.destroy();
       throw new DOMException('Запуск отменён', 'AbortError');
@@ -55,6 +55,9 @@ export class Game {
         const frame = this.input.consumeFrame();
         const nextRequest = () => 'input-' + (++this.commandNumber);
         if (frame.pressed.has('Inventory')) this.toggleInventory();
+        else if (frame.pressed.has('Interact') && session.getSnapshot().gameplay.interaction?.kind === 'storage') {
+          if (session.sendCommand({ type: 'interact', requestId: nextRequest() }).accepted) this.toggleInventory();
+        }
         const yaw = Math.atan2(Math.sin(this.camera.cameraYaw), -Math.cos(this.camera.cameraYaw));
         if (this.input.enabled) {
           for (let slot = 0; slot < 5; slot++) if (frame.pressed.has(('Hotbar' + (slot + 1)) as InputAction)) session.sendCommand({ type: 'select-slot', slot, requestId: nextRequest() });

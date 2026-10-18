@@ -1,8 +1,9 @@
-import { INVENTORY_CONFIG, ITEM_DEFINITIONS, type CommandResult, type InventorySnapshot, type ItemId, type ItemStack } from '@forest-survival/shared';
+import { BACKPACK_LEVELS, INVENTORY_CONFIG, ITEM_DEFINITIONS, isTool, type CommandResult, type InventorySnapshot, type ItemId, type ItemStack, type EquippedItemId, type UpgradeLevel } from '@forest-survival/shared';
 
 export class Inventory {
   private slots: Array<ItemStack | null>;
   private activeSlot = 0;
+  private level: UpgradeLevel = 1;
 
   constructor(slotCount: number = INVENTORY_CONFIG.slotCount, initial: ReadonlyArray<readonly [number, ItemStack]> = [[0, { id: 'starter-axe', itemId: 'axe', amount: 1 }]]) {
     if (!Number.isInteger(slotCount) || slotCount < 1) throw new Error('Invalid inventory size');
@@ -13,12 +14,12 @@ export class Inventory {
     }
   }
 
-  get equippedItem(): 'axe' | 'none' { return this.slots[this.activeSlot]?.itemId === 'axe' ? 'axe' : 'none'; }
+  get equippedItem(): EquippedItemId { const item = this.slots[this.activeSlot]; return item && isTool(item.itemId) ? item.itemId : 'none'; }
   get selectedSlot(): number { return this.activeSlot; }
   getStack(slot: number): ItemStack | null { const stack = this.slots[slot]; return stack ? { ...stack } : null; }
   count(itemId: ItemId): number { return this.slots.reduce((total, stack) => total + (stack?.itemId === itemId ? stack.amount : 0), 0); }
   capacityFor(itemId: ItemId): number { return this.slots.reduce((total, stack) => total + (!stack || stack.itemId === itemId ? ITEM_DEFINITIONS[itemId].stackLimit : 0), 0); }
-  snapshot(): InventorySnapshot { return { activeSlot: this.activeSlot, slots: this.slots.map((stack) => stack ? { ...stack } : null) }; }
+  snapshot(): InventorySnapshot { return { activeSlot: this.activeSlot, level: this.level, slots: this.slots.map((stack) => stack ? { ...stack } : null) }; }
 
   select(slot: number): CommandResult {
     if (!this.validSlot(slot)) return { accepted: false, reason: 'invalid' };
@@ -64,6 +65,32 @@ export class Inventory {
     return { accepted: true };
   }
 
+  transferTo(destination: Inventory, slot: number, expectedItemId: string): CommandResult {
+    if (destination === this || !this.validSlot(slot)) return { accepted: false, reason: 'invalid' };
+    const stack = this.getStack(slot);
+    if (!stack || stack.id !== expectedItemId) return { accepted: false, reason: 'stale' };
+    const inserted = destination.insert(stack);
+    if (!inserted.accepted) return inserted;
+    this.remove(slot);
+    return { accepted: true };
+  }
+
+  upgradeTool(slot: number, level: UpgradeLevel): CommandResult {
+    if (!this.validSlot(slot) || level !== 2) return { accepted: false, reason: 'invalid' };
+    const stack = this.slots[slot];
+    if (!stack || !isTool(stack.itemId)) return { accepted: false, reason: 'invalid' };
+    if ((stack.level ?? 1) >= level) return { accepted: false, reason: 'invalid' };
+    this.slots[slot] = { ...stack, level };
+    return { accepted: true };
+  }
+
+  upgradeBackpack(level: UpgradeLevel): CommandResult {
+    if (level !== 2 || level <= this.level) return { accepted: false, reason: 'invalid' };
+    while (this.slots.length < BACKPACK_LEVELS[level]) this.slots.push(null);
+    this.level = level;
+    return { accepted: true };
+  }
+
   remove(slot: number): ItemStack | null {
     if (!this.validSlot(slot)) return null;
     const stack = this.getStack(slot);
@@ -72,5 +99,5 @@ export class Inventory {
   }
 
   private validSlot(slot: number): boolean { return Number.isInteger(slot) && slot >= 0 && slot < this.slots.length; }
-  private validStack(stack: ItemStack): boolean { return !!stack.id && Object.hasOwn(ITEM_DEFINITIONS, stack.itemId) && Number.isInteger(stack.amount) && stack.amount > 0 && stack.amount <= ITEM_DEFINITIONS[stack.itemId].stackLimit; }
+  private validStack(stack: ItemStack): boolean { return !!stack.id && Object.hasOwn(ITEM_DEFINITIONS, stack.itemId) && Number.isInteger(stack.amount) && stack.amount > 0 && stack.amount <= ITEM_DEFINITIONS[stack.itemId].stackLimit && (stack.level === undefined || (isTool(stack.itemId) && (stack.level === 1 || stack.level === 2))); }
 }

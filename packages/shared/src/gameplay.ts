@@ -1,7 +1,9 @@
 import type { EntityId, Vector3Data } from './index';
-import type { InventorySnapshot, ItemStack } from './items';
+import { TOOL_DAMAGE, TOOL_LEVELS, type InventorySnapshot, type ItemStack, type ToolId } from './items';
 
-export type EquippedItemId = 'axe' | 'none';
+import { RESOURCE_DEFINITIONS, type ResourceKind } from './resources';
+
+export type EquippedItemId = ToolId | 'none';
 
 export interface DamageInfo {
   readonly attackId: string;
@@ -13,6 +15,8 @@ export interface DamageInfo {
 }
 
 export interface ResourceSnapshot {
+  readonly kind: ResourceKind;
+  readonly requiredTool: ToolId;
   readonly id: EntityId;
   readonly position: Vector3Data;
   readonly radius: number;
@@ -36,7 +40,7 @@ export interface DummySnapshot {
 
 export interface InteractionSnapshot {
   readonly id: EntityId;
-  readonly kind: 'tree' | 'dummy' | 'pickup';
+  readonly kind: 'tree' | 'resource' | 'dummy' | 'pickup' | 'storage';
   readonly label: string;
   readonly health?: number;
   readonly maxHealth?: number;
@@ -44,6 +48,8 @@ export interface InteractionSnapshot {
 
 export interface GameplaySnapshot {
   readonly inventory: InventorySnapshot;
+  readonly storage: { readonly inventory: InventorySnapshot; readonly inReach: boolean };
+  readonly debugTools: boolean;
   readonly equippedItem: EquippedItemId;
   readonly bag: { readonly wood: number; readonly capacity: number };
   readonly resources: readonly ResourceSnapshot[];
@@ -56,15 +62,15 @@ export interface GameplaySnapshot {
 }
 
 export const AXE_CONFIG = {
-  damage: 25,
-  windup: 0.18,
-  recovery: 0.47,
+  damage: TOOL_DAMAGE.axe,
+  windup: TOOL_LEVELS[1].windup,
+  recovery: TOOL_LEVELS[1].recovery,
   reach: 2.2,
   halfAngle: Math.PI * 55 / 180,
   maxHeightDifference: 1.25,
 } as const;
 
-export const RESOURCE_CONFIG = { treeHealth: 100, woodPerTree: 3, pickupRange: 2.2 } as const;
+export const RESOURCE_CONFIG = { treeHealth: RESOURCE_DEFINITIONS.tree.health, woodPerTree: RESOURCE_DEFINITIONS.tree.amount, pickupRange: 2.2 } as const;
 
 export const TRAINING_DUMMY = {
   id: 'training-dummy',
