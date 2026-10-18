@@ -16,6 +16,7 @@ export class Game {
   private readonly loop: FixedStepLoop;
   private destroyed = false;
   private debugEnabled = false;
+  private commandNumber = 0;
   private readonly cleanups: Array<() => void> = [];
 
   static async create(host: HTMLElement, onSnapshot: (snapshot: SessionSnapshot) => void, onError: (error: unknown) => void, signal: AbortSignal, controls?: { settings: ControlSettings; onStatus: (status: ControlStatus) => void }): Promise<Game> {
@@ -48,7 +49,13 @@ export class Game {
     this.settings = sanitizeControlSettings(settings);
     this.loop = new FixedStepLoop(
       (dt) => {
+        this.camera.look(this.input.consumeLook(), this.settings);
         const frame = this.input.consumeFrame();
+        const nextRequest = () => 'input-' + (++this.commandNumber);
+        if (frame.pressed.has('Hotbar1')) session.sendCommand({ type: 'equip-item', itemId: 'axe', requestId: nextRequest() });
+        if (frame.pressed.has('Hotbar2')) session.sendCommand({ type: 'equip-item', itemId: 'none', requestId: nextRequest() });
+        if (frame.pressed.has('Primary')) session.sendCommand({ type: 'use-item', yaw: Math.atan2(Math.sin(this.camera.cameraYaw), -Math.cos(this.camera.cameraYaw)), requestId: nextRequest() });
+        if (frame.pressed.has('Interact')) session.sendCommand({ type: 'interact', requestId: nextRequest() });
         session.step(dt, { moveX: frame.move.x, moveY: frame.move.y, sprint: frame.sprint, jump: frame.pressed.has('Jump'), cameraYaw: this.camera.cameraYaw, faceCamera: this.camera.facesCamera });
       },
       (alpha) => this.render(alpha),
@@ -113,7 +120,10 @@ export class Game {
 
   private render(alpha: number): void {
     this.camera.look(this.input.consumeLook(), this.settings);
+    const snapshot = this.session.getSnapshot();
     this.view.render({
+      gameplay: snapshot.gameplay,
+      simulationTime: snapshot.simulationTime,
       playerPosition: this.session.getRenderPosition(alpha),
       playerYaw: this.session.getRenderYaw(alpha),
       camera: this.camera.getPose(),

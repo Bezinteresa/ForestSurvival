@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue';
-import type { InputState } from '../game/input/InputState';
+import type { InputAction, InputState } from '../game/input/InputState';
 
-const props = defineProps<{ input: InputState; enabled: boolean; cameraLocked: boolean }>();
+const props = defineProps<{ input: InputState; enabled: boolean; cameraLocked: boolean; canInteract: boolean }>();
 const emit = defineEmits<{ cameraLock: []; zoom: [steps: number] }>();
 const knob = ref({ x: 0, y: 0 });
 const sprinting = ref(false);
@@ -10,7 +10,7 @@ let stickPointer: number | undefined;
 let lookPointer: number | undefined;
 let lookPosition = { x: 0, y: 0 };
 let stickCenter = { x: 0, y: 0 };
-const jumpPointers = new Set<number>();
+const actionPointers = new Map<number, InputAction>();
 
 function stickDown(event: PointerEvent): void {
   if (!props.enabled || stickPointer !== undefined) return;
@@ -56,17 +56,25 @@ function lookEnd(event: PointerEvent): void {
   if (event.pointerId === lookPointer) lookPointer = undefined;
 }
 
-function jumpDown(event: PointerEvent): void {
+function actionDown(action: InputAction, event: PointerEvent): void {
   if (!props.enabled) return;
-  jumpPointers.add(event.pointerId);
-  props.input.setHeld('Jump', 'touch-jump-' + event.pointerId, true);
+  actionPointers.set(event.pointerId, action);
+  props.input.setHeld(action, 'touch-action-' + event.pointerId, true);
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 }
 
-function jumpEnd(event: PointerEvent): void {
-  jumpPointers.delete(event.pointerId);
-  props.input.clearSource('touch-jump-' + event.pointerId);
+function actionEnd(event: PointerEvent): void {
+  actionPointers.delete(event.pointerId);
+  props.input.clearSource('touch-action-' + event.pointerId);
 }
+
+function keyboardAction(action: InputAction, event: MouseEvent): void {
+  if (!props.enabled || event.detail !== 0) return;
+  props.input.setHeld(action, 'accessible-touch', true);
+  props.input.setHeld(action, 'accessible-touch', false);
+}
+
+function cancelAll(): void { props.input.clear(); clear(); }
 
 function toggleSprint(): void {
   if (!props.enabled) return;
@@ -77,8 +85,8 @@ function toggleSprint(): void {
 function clear(): void {
   props.input.clearSource('touch-stick');
   props.input.clearSource('touch-sprint');
-  for (const pointer of jumpPointers) props.input.clearSource('touch-jump-' + pointer);
-  jumpPointers.clear();
+  for (const pointer of actionPointers.keys()) props.input.clearSource('touch-action-' + pointer);
+  actionPointers.clear();
   stickPointer = undefined;
   lookPointer = undefined;
   knob.value = { x: 0, y: 0 };
@@ -93,15 +101,17 @@ onBeforeUnmount(clear);
   <div v-if="enabled" class="touch-controls" aria-label="Сенсорное управление">
     <div class="touch-look" aria-label="Область обзора"
       @pointerdown.stop.prevent="lookDown" @pointermove.stop.prevent="lookMove"
-      @pointerup.stop="lookEnd" @pointercancel.stop="lookEnd" @lostpointercapture="lookEnd" />
+      @pointerup.stop="lookEnd" @pointercancel.stop="cancelAll" @lostpointercapture="lookEnd" />
     <div class="touch-stick" aria-label="Стик движения"
       @pointerdown.stop.prevent="stickDown" @pointermove.stop.prevent="stickMove"
-      @pointerup.stop="stickEnd" @pointercancel.stop="stickEnd" @lostpointercapture="stickEnd">
+      @pointerup.stop="stickEnd" @pointercancel.stop="cancelAll" @lostpointercapture="stickEnd">
       <span :style="{ transform: 'translate(' + knob.x + 'px, ' + knob.y + 'px)' }" />
     </div>
     <div class="touch-actions" data-ui>
+      <button class="touch-button attack" @pointerdown.stop.prevent="actionDown('Primary', $event)" @pointerup.stop="actionEnd" @pointercancel.stop="cancelAll" @lostpointercapture="actionEnd" @click="keyboardAction('Primary', $event)">Удар</button>
+      <button class="touch-button" :disabled="!canInteract" @pointerdown.stop.prevent="actionDown('Interact', $event)" @pointerup.stop="actionEnd" @pointercancel.stop="cancelAll" @lostpointercapture="actionEnd" @click="keyboardAction('Interact', $event)">Взять</button>
       <button class="touch-button" :class="{ selected: sprinting }" :aria-pressed="sprinting" @pointerdown.prevent @click="toggleSprint">Бег</button>
-      <button class="touch-button jump" @pointerdown.stop.prevent="jumpDown" @pointerup.stop="jumpEnd" @pointercancel.stop="jumpEnd" @lostpointercapture="jumpEnd">Прыжок</button>
+      <button class="touch-button jump" @pointerdown.stop.prevent="actionDown('Jump', $event)" @pointerup.stop="actionEnd" @pointercancel.stop="cancelAll" @lostpointercapture="actionEnd" @click="keyboardAction('Jump', $event)">Прыжок</button>
     </div>
     <div class="touch-camera" data-ui>
       <button class="touch-button small" :class="{ selected: cameraLocked }" :aria-pressed="cameraLocked" @pointerdown.prevent @click="emit('cameraLock')">Фикс.</button>

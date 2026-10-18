@@ -1,5 +1,5 @@
 import type { Collider, KinematicCharacterController, RigidBody, World } from '@dimforge/rapier3d-compat';
-import { PLAYER_CONFIG, SIMULATION_CONFIG, TEST_WORLD, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
+import { PLAYER_CONFIG, SIMULATION_CONFIG, TEST_WORLD, TRAINING_DUMMY, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
 
 type Rapier = typeof import('@dimforge/rapier3d-compat')['default'];
 let rapierPromise: Promise<Rapier> | undefined;
@@ -22,6 +22,7 @@ export interface DebugGeometry {
 }
 
 export class PhysicsWorld {
+  private readonly entityColliders = new Map<string, Collider>();
   private readonly player: RigidBody;
   private readonly playerCollider: Collider;
   private readonly controller: KinematicCharacterController;
@@ -40,7 +41,7 @@ export class PhysicsWorld {
     }
   }
 
-  private constructor(rapier: Rapier, private readonly world: World) {
+  private constructor(private readonly rapier: Rapier, private readonly world: World) {
     world.timestep = SIMULATION_CONFIG.fixedStep;
     // An analytical plane avoids capsule/large-cuboid normal jitter on this flat test map.
     // The perimeter walls keep the playable area inside the visible floor.
@@ -50,8 +51,9 @@ export class PhysicsWorld {
       world.createCollider(rapier.ColliderDesc.cuboid(box.halfSize.x, box.halfSize.y, box.halfSize.z).setTranslation(box.position.x, box.position.y, box.position.z));
     }
     for (const tree of TEST_WORLD.trees) {
-      world.createCollider(rapier.ColliderDesc.cylinder(tree.trunkHeight / 2, tree.radius).setTranslation(tree.position.x, tree.trunkHeight / 2, tree.position.z));
+      this.entityColliders.set(tree.id, world.createCollider(rapier.ColliderDesc.cylinder(tree.trunkHeight / 2, tree.radius).setTranslation(tree.position.x, tree.position.y + tree.trunkHeight / 2, tree.position.z)));
     }
+    this.entityColliders.set(TRAINING_DUMMY.id, world.createCollider(rapier.ColliderDesc.cuboid(TRAINING_DUMMY.radius, TRAINING_DUMMY.height / 2, TRAINING_DUMMY.radius).setTranslation(TRAINING_DUMMY.position.x, TRAINING_DUMMY.height / 2, TRAINING_DUMMY.position.z)));
     const spawn = PLAYER_CONFIG.spawn;
     this.player = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y, spawn.z));
     this.playerCollider = world.createCollider(rapier.ColliderDesc.capsule(PLAYER_CONFIG.halfHeight, PLAYER_CONFIG.radius), this.player);
@@ -86,6 +88,24 @@ export class PhysicsWorld {
     return { id: PLAYER_CONFIG.id, position: { x: position.x, y: position.y, z: position.z }, grounded: this.grounded };
   }
 
+  hasLineOfSight(from: Vector3Data, to: Vector3Data, targetId?: string): boolean {
+    this.assertAlive();
+    const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
+    const distance = Math.hypot(dx, dy, dz);
+    if (distance < 0.001) return true;
+    const ray = new this.rapier.Ray(from, { x: dx / distance, y: dy / distance, z: dz / distance });
+    const ignored = targetId ? this.entityColliders.get(targetId) : undefined;
+    return !this.world.castRay(ray, Math.max(0, distance - 0.01), true, undefined, undefined, this.playerCollider, undefined, (collider) => collider.handle !== ignored?.handle);
+  }
+
+  removeEntityCollider(id: string): void {
+    this.assertAlive();
+    const collider = this.entityColliders.get(id);
+    if (!collider) return;
+    this.entityColliders.delete(id);
+    this.world.removeCollider(collider, false);
+  }
+
   resetPlayer(): void {
     this.assertAlive();
     this.player.setTranslation(PLAYER_CONFIG.spawn, true);
@@ -105,6 +125,7 @@ export class PhysicsWorld {
     this.destroyed = true;
     this.world.removeCharacterController(this.controller);
     this.world.free();
+    this.entityColliders.clear();
   }
 
   private assertAlive(): void {

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TEST_WORLD } from '@forest-survival/shared';
+import { GameplayView } from './GameplayView';
 import { getCameraPlacement } from '../player/CameraController';
 import { resolveCameraCollision } from '../player/CameraCollision';
 import type { GameFrame, GameView } from '../core/GameView';
@@ -9,6 +10,8 @@ export class SceneView implements GameView {
   private readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 150);
   private readonly player = new THREE.Group();
   private readonly cameraObstacles: THREE.Object3D[] = [];
+  private readonly trees = new Map<string, THREE.Group>();
+  private gameplayView: GameplayView | undefined;
   get canvas(): HTMLCanvasElement { return this.renderer.domElement; }
   private readonly debugLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x65ffe1, depthTest: false }));
   private observer: ResizeObserver | undefined;
@@ -52,6 +55,7 @@ export class SceneView implements GameView {
     if (this.destroyed) return;
     this.player.position.set(frame.playerPosition.x, frame.playerPosition.y, frame.playerPosition.z);
     this.player.rotation.y = frame.playerYaw;
+    this.gameplayView?.update(frame);
     const placement = getCameraPlacement(frame.playerPosition, frame.camera);
     const position = frame.camera.firstPerson ? placement.position : resolveCameraCollision(placement.target, placement.position, this.cameraObstacles);
     this.camera.position.set(position.x, position.y, position.z);
@@ -148,6 +152,7 @@ export class SceneView implements GameView {
       upperCrown.position.y = tree.trunkHeight + 1.8;
       group.add(trunk, crown, upperCrown);
       this.scene.add(group);
+      this.trees.set(tree.id, group);
       this.cameraObstacles.push(trunk, crown, upperCrown);
     }
     this.player.name = 'local-player';
@@ -170,6 +175,8 @@ export class SceneView implements GameView {
     this.debugLines.renderOrder = 10;
     this.debugLines.frustumCulled = false;
     this.scene.add(this.debugLines);
+    this.scene.add(this.camera);
+    this.gameplayView = new GameplayView(this.scene, this.player, this.camera, this.trees, this.cameraObstacles);
     this.scene.updateMatrixWorld(true);
   }
 

@@ -24,6 +24,11 @@ let disposed = false;
 let requestNumber = 0;
 
 const active = computed(() => !!snapshot.value && snapshot.value.status !== 'stopped');
+const gameplay = computed(() => snapshot.value?.gameplay);
+const feedback = computed(() => {
+  const message = gameplay.value?.feedback;
+  return message && (snapshot.value?.simulationTime ?? 0) - message.at < 1.6 ? message.text : '';
+});
 const paused = computed(() => snapshot.value?.status === 'paused');
 const elapsed = computed(() => {
   const seconds = Math.floor(snapshot.value?.simulationTime ?? 0);
@@ -90,6 +95,10 @@ function resetPosition(): void {
   game?.sendCommand({ type: 'reset-player', requestId: 'reset-' + (++requestNumber) });
 }
 
+function equip(itemId: 'axe' | 'none'): void {
+  game?.sendCommand({ type: 'equip-item', itemId, requestId: 'ui-' + (++requestNumber) });
+}
+
 function changeSensitivity(key: 'mouseSensitivity' | 'touchSensitivity', event: Event): void {
   updateSettings({ ...settings.value, [key]: (event.target as HTMLInputElement).valueAsNumber });
 }
@@ -115,7 +124,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
       <p class="eyebrow">ПЕРВЫЙ ШАГ В ЛЕС</p>
       <h1 id="welcome-title">Всё начинается<br />с поляны.</h1>
       <p class="intro">Основа будущего выживания: персонаж, деревья и препятствия на небольшой тестовой площадке.</p>
-      <p class="scope-note">WASD — движение, Space — прыжок, ПКМ — обзор. На телефоне доступны стик и экранные кнопки.</p>
+      <p class="scope-note">Подойдите к дереву, нанесите несколько ударов топором и подберите древесину. На телефоне доступны стик и экранные кнопки.</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <button class="button primary" :disabled="loading" @click="start">{{ loading ? 'Подготавливаем поляну…' : error ? 'Попробовать снова' : 'Открыть поляну' }}<span aria-hidden="true">↗</span></button>
       <p class="footnote">Локальная сессия · без подключения к серверу</p>
@@ -124,12 +133,24 @@ onBeforeUnmount(() => { disposed = true; stop(); });
     <div v-if="active && !paused" class="play-readings"><span>{{ elapsed }}</span><span>{{ snapshot?.player.grounded ? 'На земле' : 'В воздухе' }}</span><span>{{ controls.firstPerson ? 'Первое лицо' : controls.cameraLocked ? 'Камера фиксирована' : 'Третье лицо' }}</span></div>
     <div v-if="active && !paused" class="crosshair" aria-hidden="true">+</div>
     <p v-if="active && !paused && controls.message" class="control-message" role="status">{{ controls.message }}</p>
-    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="!paused" :camera-locked="controls.cameraLocked" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
+    <div v-if="active && !paused && gameplay" class="resource-count">Древесина <strong>{{ gameplay.bag.wood }} / {{ gameplay.bag.capacity }}</strong></div>
+    <div v-if="active && !paused && gameplay?.interaction" class="target-hint">
+      <strong>{{ gameplay.interaction.label }}</strong>
+      <template v-if="gameplay.interaction.health !== undefined"><span>{{ gameplay.interaction.health }} / {{ gameplay.interaction.maxHealth }}</span><progress :value="gameplay.interaction.health" :max="gameplay.interaction.maxHealth" /></template>
+      <span>{{ gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
+    </div>
+    <p v-if="active && !paused && feedback" class="game-feedback" role="status">{{ feedback }}</p>
+    <div v-if="active && !paused && gameplay" class="equipment-bar" data-ui>
+      <button :class="{ selected: gameplay.equippedItem === 'axe' }" :aria-pressed="gameplay.equippedItem === 'axe'" @click="equip('axe')">1 · Топор</button>
+      <button :class="{ selected: gameplay.equippedItem === 'none' }" :aria-pressed="gameplay.equippedItem === 'none'" @click="equip('none')">2 · Пустые руки</button>
+      <progress v-if="gameplay.attack.phase !== 'idle'" :value="gameplay.attack.progress" max="1" aria-label="Восстановление после удара" />
+    </div>
+    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="!paused" :camera-locked="controls.cameraLocked" :can-interact="gameplay?.interaction?.kind === 'pickup'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
     <div v-if="active && paused" class="pause-backdrop" />
     <section v-if="active && paused" class="scene-panel" aria-label="Меню паузы" data-ui>
       <p class="eyebrow">ТЕСТОВАЯ ПОЛЯНА</p>
       <h1>Лесная площадка</h1>
-      <p class="panel-description">WASD — движение · Space — прыжок · Ctrl — бег · Shift — фиксация камеры · ПКМ — обзор · колесо — приближение.</p>
+      <p class="panel-description">WASD — движение · Space — прыжок · Ctrl — бег · Shift — фиксация камеры · ПКМ — обзор · колесо — приближение. ЛКМ — удар, E — подбор, 1/2 — топор или пустые руки.</p>
       <div class="readings">
         <div><span>Время сцены</span><strong>{{ elapsed }}</strong></div>
         <div><span>Персонаж</span><strong>{{ snapshot?.player.grounded ? 'На земле' : 'В воздухе' }}</strong></div>

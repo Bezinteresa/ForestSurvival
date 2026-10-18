@@ -1,3 +1,6 @@
+import type { EquippedItemId, GameplaySnapshot } from './gameplay';
+export * from './gameplay';
+
 export type EntityId = string;
 
 export interface Vector3Data {
@@ -32,16 +35,21 @@ export interface SessionSnapshot {
   readonly status: SessionStatus;
   readonly simulationTime: number;
   readonly player: PlayerSnapshot;
+  readonly gameplay: GameplaySnapshot;
 }
 
-export interface SessionCommand {
-  readonly type: 'reset-player';
-  readonly requestId: string;
-}
+export type SessionCommand = { readonly requestId: string } & (
+  | { readonly type: 'reset-player' }
+  | { readonly type: 'use-item'; readonly yaw: number }
+  | { readonly type: 'equip-item'; readonly itemId: EquippedItemId }
+  | { readonly type: 'pickup'; readonly targetId: string }
+  | { readonly type: 'interact' }
+);
 
 export interface CommandResult {
   readonly accepted: boolean;
   readonly duplicate?: boolean;
+  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid';
 }
 
 export const SIMULATION_CONFIG = {

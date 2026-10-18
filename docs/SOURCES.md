@@ -46,3 +46,9 @@
 - Rapier HalfSpace: https://rapier.rs/javascript3d/classes/HalfSpace.html — аналитический пол тестовой сцены.
 - Three.js Raycaster: https://threejs.org/docs/pages/Raycaster.html — геометрическая проверка препятствий камеры.
 - Pointer Lock: https://developer.mozilla.org/en-US/docs/Web/API/Element/requestPointerLock — захват после пользовательского действия, ошибки и ограничения браузера.
+
+## Удары и добыча T015–T024
+
+- Rapier scene queries: https://rapier.rs/docs/user_guides/javascript/scene_queries/ — лучи видимости и исключение коллайдеров игрока/цели.
+
+Сектор, тайминги, DamageInfo, ограничения контейнера и защита от повторной выдачи — правила нашей реализации; не механики, автоматически предоставляемые Three.js или Rapier.
