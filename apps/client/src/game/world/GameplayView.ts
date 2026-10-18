@@ -22,8 +22,10 @@ export class GameplayView {
     this.axe.position.set(0.52, -0.05, 0.15);
     player.add(this.axe);
     this.buildAxe(this.firstPersonAxe);
-    this.firstPersonAxe.scale.setScalar(0.75);
-    this.firstPersonAxe.position.set(0.32, -0.4, -0.65);
+    // Low in the right corner: the tool head must not cover the crosshair or a third of the view.
+    this.firstPersonAxe.scale.setScalar(0.6);
+    this.firstPersonAxe.position.set(0.36, -0.6, -0.85);
+    this.firstPersonAxe.rotation.z = 0.15;
     camera.add(this.firstPersonAxe);
     this.firstPersonAxe.visible = false;
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.2, 0.4), new THREE.MeshStandardMaterial({ color: 0x967358, roughness: 1 }));

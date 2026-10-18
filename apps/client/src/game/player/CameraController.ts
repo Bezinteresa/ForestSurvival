@@ -10,6 +10,10 @@ export interface CameraPose {
   readonly firstPerson: boolean;
 }
 
+// Looking up from third person pushes the camera into the ground next to the player and hides the model.
+const THIRD_PERSON_MIN_PITCH = -0.6;
+const FIRST_PERSON_MIN_PITCH = -1.25;
+
 export class CameraController {
   private yaw = 0;
   private pitch = 0.26;
@@ -26,13 +30,14 @@ export class CameraController {
   zoom(steps: number): void {
     if (!Number.isFinite(steps)) return;
     this.distance = Math.max(0, Math.min(12, this.distance + Math.max(-3, Math.min(3, steps)) * 0.65));
+    if (!this.firstPerson) this.pitch = Math.max(THIRD_PERSON_MIN_PITCH, this.pitch);
   }
 
   look(delta: LookDelta, settings: ControlSettings): void {
     this.yaw += delta.mouse.x * settings.mouseSensitivity + delta.touch.x * settings.touchSensitivity;
     this.yaw = Math.atan2(Math.sin(this.yaw), Math.cos(this.yaw));
     const dy = delta.mouse.y * settings.mouseSensitivity + delta.touch.y * settings.touchSensitivity;
-    this.pitch = Math.max(-1.25, Math.min(1.35, this.pitch + dy * (settings.invertY ? -1 : 1)));
+    this.pitch = Math.max(this.firstPerson ? FIRST_PERSON_MIN_PITCH : THIRD_PERSON_MIN_PITCH, Math.min(1.35, this.pitch + dy * (settings.invertY ? -1 : 1)));
   }
 
   getPose(): CameraPose {

@@ -99,7 +99,7 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 
 .resource-count { position: absolute; top: 156px; left: 36px; z-index: 1; padding: 10px 14px; border-radius: 10px; background: #102017db; font-size: 12px; pointer-events: none; }
 .resource-count strong { margin-left: 14px; color: #d6e5a9; }
-.target-hint { position: absolute; left: 50%; top: calc(50% + 26px); transform: translateX(-50%); z-index: 1; padding: 10px 14px; min-width: 160px; border-radius: 10px; background: #102017de; text-align: center; pointer-events: none; font-size: 11px; }
+.target-hint { position: absolute; left: 50%; bottom: calc(max(20px, env(safe-area-inset-bottom)) + 76px); transform: translateX(-50%); z-index: 1; padding: 10px 14px; min-width: 160px; border-radius: 10px; background: #102017de; text-align: center; pointer-events: none; font-size: 11px; }
 .target-hint strong, .target-hint span { display: block; margin: 3px 0; }
 .target-hint progress { width: 100%; height: 6px; accent-color: #d6e5a9; }
 .game-feedback { position: absolute; top: 195px; left: 36px; z-index: 1; max-width: min(300px, calc(100% - 48px)); padding: 10px 14px; border-radius: 10px; color: #f3e7bd; background: #102017db; font-size: 12px; pointer-events: none; }
@@ -111,6 +111,9 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 .touch-button.attack { background: #9b683fdd; }
 .touch-button:disabled { opacity: .4; cursor: default; }
 @media (any-pointer: coarse) { .resource-count { top: 139px; left: 20px; font-size: 11px; } .game-feedback { top: 180px; left: 20px; } .touch-look { bottom: 245px; } }
+/* Portrait touch layout: stick and actions sit above the hotbar, camera buttons share the readings row. In landscape they stay beside the hotbar. */
+@media (any-pointer: coarse) { .target-hint { bottom: calc(50% + 44px); } }
+@media (any-pointer: coarse) and (min-height: 561px) { .touch-stick, .touch-actions { bottom: calc(max(20px, env(safe-area-inset-bottom)) + 84px); } .touch-look { bottom: 270px; } .touch-camera { top: 82px; } }
 @media (max-height: 560px) { .resource-count { top: 116px; left: 20px; } .game-feedback { top: 150px; left: 20px; } .touch-controls .touch-look { bottom: 110px; } .equipment-bar { bottom: 12px; } }
 
 .equipment-bar button { width: 62px; min-height: 62px; padding: 6px 3px; }
@@ -130,7 +133,7 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 .inventory-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .inventory-actions button:disabled { cursor: default; }
 @media (max-width: 600px) { .inventory-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } .inventory-panel { padding: 16px; } .header-actions { gap: 6px; } .header-actions .mode-badge { display: none; } .header-actions .button { padding: 10px; min-height: 44px; } }
-@media (any-pointer: coarse) and (max-height: 560px) { .touch-actions { bottom: 84px; } .touch-controls .touch-look { bottom: 230px; top: 75px; } }
+@media (any-pointer: coarse) and (max-height: 560px) { .touch-actions { bottom: 92px; } .touch-controls .touch-look { bottom: 100px; top: 75px; } .touch-camera { top: 66px; } }
 
 .resource-count > span { display: block; margin-top: 6px; color: #bdcbb4; }
 .storage-section { margin-top: 24px; padding-top: 16px; border-top: 1px solid #ffffff30; }

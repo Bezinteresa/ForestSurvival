@@ -147,13 +147,15 @@ export class SceneView implements GameView {
       const trunk = this.mesh(new THREE.CylinderGeometry(tree.radius, tree.radius, tree.trunkHeight, 7), 0x6c4930);
       trunk.position.y = tree.trunkHeight / 2;
       const crown = this.mesh(new THREE.ConeGeometry(1.7, 3.3, 7), 0x2e573c);
-      crown.position.y = tree.trunkHeight + 0.7;
+      // The crown starts above head height so a player chopping the trunk stands under it, not inside it.
+      crown.position.y = tree.trunkHeight + 1.35;
       const upperCrown = this.mesh(new THREE.ConeGeometry(1.2, 2.6, 7), 0x3a6943);
-      upperCrown.position.y = tree.trunkHeight + 1.8;
+      upperCrown.position.y = tree.trunkHeight + 2.45;
       group.add(trunk, crown, upperCrown);
       this.scene.add(group);
       this.trees.set(tree.id, group);
-      this.cameraObstacles.push(trunk, crown, upperCrown);
+      // Foliage does not push the camera: near a trunk the camera ray would hit the crown and collapse into the player's head.
+      this.cameraObstacles.push(trunk);
     }
     this.player.name = 'local-player';
     const body = this.mesh(new THREE.BoxGeometry(0.64, 0.72, 0.38), 0xc99e4d);

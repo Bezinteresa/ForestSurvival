@@ -107,6 +107,18 @@ describe('camera without WebGL', () => {
     expect(camera.getPose().distance).toBe(12);
   });
 
+  it('lets first person look higher than third person without burying the orbit camera in the ground', () => {
+    const camera = new CameraController();
+    const up = { mouse: { x: 0, y: -100000 }, touch: { x: 0, y: 0 } };
+    camera.look(up, DEFAULT_CONTROL_SETTINGS);
+    expect(camera.getPose().pitch).toBe(-0.6);
+    for (let i = 0; i < 20; i++) camera.zoom(-1);
+    camera.look(up, DEFAULT_CONTROL_SETTINGS);
+    expect(camera.getPose().pitch).toBe(-1.25);
+    camera.zoom(3);
+    expect(camera.getPose().pitch).toBe(-0.6);
+  });
+
   it('applies touch sensitivity and inversion independently of mouse sensitivity', () => {
     const normal = new CameraController(), inverted = new CameraController();
     const delta = { mouse: { x: 0, y: 0 }, touch: { x: 10, y: 10 } };
