@@ -20,11 +20,11 @@ describe('campfire level purchases', () => {
     expect(fire.contains(outside)).toBe(true);
     expect([bag.count('wood'), bag.count('stone'), bag.count('scrap')]).toEqual([3, 3, 2]);
     expect(fire.upgrade(2, bag, player, queries()).accepted).toBe(true);
-    expect(fire.snapshot(player, true)).toMatchObject({ level: 3, safeRadius: 9, zoneRadius: 9, fuelSeconds: 60, nextUpgrade: null });
+    expect(fire.snapshot(player, true)).toMatchObject({ level: 3, safeRadius: 9, zoneRadius: 9, fuelSeconds: 60, nextUpgrade: { level: 4 } });
     expect(fire.contains({ ...outside, x: 8.9 })).toBe(true);
     expect(fire.contains({ ...outside, x: 9.1 })).toBe(false);
     expect(bag.snapshot().slots.filter(Boolean)).toEqual([tool]);
-    expect(fire.upgrade(3, bag, player, queries()).reason).toBe('max-level');
+    expect(fire.upgrade(3, bag, player, queries()).reason).toBe('insufficient-materials');
     fire.step(60);
     expect(fire.snapshot(player, true)).toMatchObject({ level: 3, zoneRadius: 9, safeRadius: 0, lit: false });
     bag.insert({ id: 'fuel', itemId: 'wood', amount: 1 });
@@ -49,7 +49,7 @@ describe('campfire level purchases', () => {
     const initial = bag.snapshot();
     expect(fire.upgrade(2, bag, player, queries()).reason).toBe('stale');
     expect(fire.upgrade(3, bag, player, queries()).reason).toBe('stale');
-    for (const level of [0, 4, NaN, 1.5]) expect(fire.upgrade(level, bag, player, queries()).reason).toBe('invalid');
+    for (const level of [0, 7, NaN, 1.5]) expect(fire.upgrade(level, bag, player, queries()).reason).toBe('invalid');
     expect(bag.snapshot()).toEqual(initial);
     fire.upgrade(1, bag, player, queries());
     const remaining = bag.snapshot();

@@ -24,6 +24,16 @@ export const TEST_MATERIAL_NODES: readonly MaterialNodeDefinition[] = [
   { id: 'scrap-02', kind: 'scrap-pile', position: { x: -9, y: 0, z: -2 }, radius: 0.7, height: 1 },
   { id: 'coal-01', kind: 'coal-vein', position: { x: 5, y: 0, z: -7 }, radius: 0.65, height: 1.1 },
   { id: 'coal-02', kind: 'coal-vein', position: { x: -7, y: 0, z: 11 }, radius: 0.7, height: 1.2 },
+  { id: 'rock-03', kind: 'rock', position: { x: 3, y: 0, z: 10 }, radius: 0.7, height: 1.2 },
+  { id: 'rock-04', kind: 'rock', position: { x: -5, y: 0, z: 14 }, radius: 0.7, height: 1.2 },
+  { id: 'rock-05', kind: 'rock', position: { x: 10, y: 0, z: 13 }, radius: 0.7, height: 1.2 },
+  { id: 'rock-06', kind: 'rock', position: { x: -14, y: 0, z: 12 }, radius: 0.7, height: 1.2 },
+  { id: 'scrap-03', kind: 'scrap-pile', position: { x: 8, y: 0, z: -12 }, radius: 0.7, height: 1.2 },
+  { id: 'scrap-04', kind: 'scrap-pile', position: { x: -12, y: 0, z: -10 }, radius: 0.7, height: 1.2 },
+  { id: 'scrap-05', kind: 'scrap-pile', position: { x: 15, y: 0, z: 3 }, radius: 0.7, height: 1.2 },
+  { id: 'scrap-06', kind: 'scrap-pile', position: { x: -15, y: 0, z: 4 }, radius: 0.7, height: 1.2 },
+  { id: 'scrap-07', kind: 'scrap-pile', position: { x: 3, y: 0, z: 15 }, radius: 0.7, height: 1.2 },
+  { id: 'scrap-08', kind: 'scrap-pile', position: { x: 14, y: 0, z: -5 }, radius: 0.7, height: 1.2 },
 ];
 
 export const CAMP_STORAGE = { id: 'camp-storage', position: { x: -1.5, y: 0.5, z: -2 }, halfSize: { x: 0.6, y: 0.5, z: 0.4 }, range: 2.6, slots: 8 } as const;
