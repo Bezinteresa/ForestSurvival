@@ -6,7 +6,7 @@ import { Inventory } from '../items/Inventory';
 import { CampStorage } from '../items/CampStorage';
 import { PlayerVitals } from '../player/PlayerVitals';
 import { ForagingWorld } from './ForagingWorld';
-import { CAMPFIRE_CONFIG } from '@forest-survival/shared';
+import { CAMPFIRE_CONFIG, type CampfireLevel } from '@forest-survival/shared';
 import { Campfire } from './Campfire';
 
 interface ResourceDefinition extends TreeDefinition { readonly kind: ResourceKind }
@@ -52,6 +52,18 @@ export class GameplayWorld {
       'wrong-fuel': 'Выберите древесину в рюкзаке.', 'fire-full': 'Нет места для всей порции топлива. Древесина сохранена.',
     };
     this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted ? 'Костёр: +' + CAMPFIRE_CONFIG.secondsPerWood + ' с · −1 древесина' : messages[result.reason!] ?? 'Не удалось добавить топливо.', at: now };
+    return result;
+  }
+
+  upgradeFire(expectedLevel: CampfireLevel, player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    const result = this.campfire.upgrade(expectedLevel, this.inventory, player, this.visibility);
+    const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = {
+      'out-of-range': 'Подойдите к костру.', blocked: 'Костёр закрыт препятствием.', stale: 'Уровень костра изменился. Проверьте новое улучшение.',
+      'fire-out': 'Сначала разожгите костёр.', 'max-level': 'Достигнут максимальный уровень костра.', 'insufficient-materials': 'Не хватает материалов в рюкзаке.',
+    };
+    const state = this.campfire.snapshot(player, this.campfireInReach);
+    this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted ? 'Костёр: уровень ' + state.level + ' · зона ' + state.zoneRadius + ' м' : messages[result.reason!] ?? 'Улучшение недоступно.', at: now };
     return result;
   }
 
@@ -237,7 +249,7 @@ export class GameplayWorld {
     const fire = CAMPFIRE_CONFIG;
     if (this.campfireInReach && selectTarget([{ id: fire.id, position: { ...fire.position, y: fire.position.y + fire.targetHeight }, radius: 0 }], origin, yaw, fire.range, AXE_CONFIG.halfAngle, 1.5, this.visibility)) {
       const snapshot = this.campfire.snapshot(player, true);
-      this.interaction = { id: fire.id, kind: 'campfire', label: snapshot.lit ? 'Костёр · ' + Math.ceil(snapshot.fuelSeconds) + ' с' : 'Костёр потух' };
+      this.interaction = { id: fire.id, kind: 'campfire', label: 'Костёр · ур. ' + snapshot.level + (snapshot.lit ? ' · ' + Math.ceil(snapshot.fuelSeconds) + ' с' : ' · потух') };
       return;
     }
     const target = this.findStrikeTarget(player, yaw);

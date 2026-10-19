@@ -6,6 +6,26 @@ const wood = (id: string, amount = 1): ItemStack => ({ id, itemId: 'wood', amoun
 const axe: ItemStack = { id: 'axe', itemId: 'axe', amount: 1 };
 
 describe('slot inventory transactions', () => {
+  it('spends a complete material price across split stacks while preserving remaining IDs, tools and food', () => {
+    const bag = new Inventory(6, [[0, axe], [1, wood('a', 2)], [2, wood('b', 3)], [3, { id: 'stone', itemId: 'stone', amount: 3 }], [4, { id: 'food', itemId: 'berries', amount: 2 }]]);
+    bag.select(2);
+    expect(bag.spendMaterials({ wood: 3, stone: 2 }).accepted).toBe(true);
+    expect(bag.getStack(1)).toBeNull();
+    expect(bag.getStack(2)).toEqual(wood('b', 2));
+    expect(bag.getStack(3)).toEqual({ id: 'stone', itemId: 'stone', amount: 1 });
+    expect(bag.getStack(0)).toEqual(axe);
+    expect(bag.getStack(4)).toEqual({ id: 'food', itemId: 'berries', amount: 2 });
+    expect(bag.selectedSlot).toBe(2);
+  });
+
+  it('keeps every material on a missing final ingredient or an invalid price', () => {
+    const bag = new Inventory(5, [[0, axe], [1, wood('wood', 3)], [2, { id: 'stone', itemId: 'stone', amount: 2 }]]);
+    const before = bag.snapshot();
+    expect(bag.spendMaterials({ wood: 3, stone: 3 }).reason).toBe('insufficient-materials');
+    for (const cost of [{}, { wood: 0 }, { stone: -1 }, { wood: NaN }, { scrap: 0.5 }, { wood: Infinity }]) expect(bag.spendMaterials(cost).reason).toBe('invalid');
+    expect(bag.snapshot()).toEqual(before);
+  });
+
   it('fills existing stacks before empty slots and keeps tools unique', () => {
     const bag = new Inventory(3, [[0, axe]]);
     expect(bag.insert(wood('a', 2)).accepted).toBe(true);

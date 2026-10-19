@@ -1,5 +1,6 @@
 export type ToolId = 'axe' | 'pickaxe';
 export type MaterialId = 'wood' | 'stone' | 'scrap';
+export type MaterialCost = Readonly<Partial<Record<MaterialId, number>>>;
 export type FoodId = 'berries';
 export type ItemId = ToolId | MaterialId | FoodId;
 export type UpgradeLevel = 1 | 2;

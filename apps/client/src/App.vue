@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef } from 'vue';
-import { itemLabel, isFood, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
+import { itemLabel, isFood, type CampfireLevel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
 import type { Game } from './game/core/Game';
 import type { InputState } from './game/input/InputState';
 import type { ControlStatus } from './game/input/BrowserInput';
@@ -132,6 +132,9 @@ function reportInventory(result?: CommandResult): void {
     dead: 'Забег завершён.',
     'fire-full': 'Нет места для всей порции топлива. Древесина сохранена.',
     'wrong-fuel': 'Для костра нужна древесина.',
+    'fire-out': 'Сначала разожгите костёр.',
+    'max-level': 'Достигнут максимальный уровень костра.',
+    'insufficient-materials': 'Не хватает материалов в рюкзаке.',
   };
   inventoryNote.value = result?.accepted ? 'Готово.' : result?.reason ? messages[result.reason] ?? 'Операция недоступна.' : 'Операция недоступна.';
 }
@@ -159,6 +162,13 @@ function fuelFire(slot: number): void {
   reportInventory(result);
   if (result?.reason === 'blocked') inventoryNote.value = 'Костёр закрыт препятствием.';
   if (result?.reason === 'out-of-range') inventoryNote.value = 'Подойдите к костру.';
+}
+function upgradeFire(expectedLevel: CampfireLevel): void {
+  const result = game?.sendCommand({ type: 'upgrade-fire', expectedLevel, requestId: 'ui-' + (++requestNumber) });
+  reportInventory(result);
+  if (result?.reason === 'blocked') inventoryNote.value = 'Костёр закрыт препятствием.';
+  if (result?.reason === 'out-of-range') inventoryNote.value = 'Подойдите к костру.';
+  if (result?.reason === 'stale') inventoryNote.value = 'Уровень костра изменился. Проверьте новое улучшение.';
 }
 function debugUpgrade(target: 'tool' | 'backpack', slot: number): void { reportInventory(game?.sendCommand({ type: 'debug-upgrade', target, slot, level: 2, requestId: 'ui-' + (++requestNumber) })); }
 
@@ -208,7 +218,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
       <progress v-if="gameplay.attack.phase !== 'idle'" :value="gameplay.attack.progress" max="1" aria-label="Восстановление после удара" />
     </div>
     <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="canInteract" :interaction-label="interactionLabel" :primary-label="foodInHand ? 'Есть' : 'Удар'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
-    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @fuel-fire="fuelFire" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
+    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
     <PlayerStatus v-if="canPlay && snapshot" :vitals="snapshot.vitals" />
     <RunResult v-if="ended && snapshot" :vitals="snapshot.vitals" :elapsed="elapsed" @restart="start" @leave="stop" />
     <div v-if="active && paused" class="pause-backdrop" />

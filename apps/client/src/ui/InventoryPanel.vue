@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
-import { ITEM_DEFINITIONS, isTool, isFood, itemLabel, type GameplaySnapshot, type InventorySnapshot } from '@forest-survival/shared';
+import { ITEM_DEFINITIONS, isTool, isFood, itemLabel, type CampfireLevel, type GameplaySnapshot, type InventorySnapshot } from '@forest-survival/shared';
 import CampfirePanel from './CampfirePanel.vue';
 
 const props = defineProps<{ inventory: InventorySnapshot; storage: GameplaySnapshot['storage']; campfire: GameplaySnapshot['campfire']; debugTools: boolean; note: string }>();
-const emit = defineEmits<{ close: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; consumeItem: [slot: number]; fuelFire: [slot: number]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
+const emit = defineEmits<{ close: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; consumeItem: [slot: number]; fuelFire: [slot: number]; upgradeFire: [expectedLevel: CampfireLevel]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
 const dialog = useTemplateRef<HTMLDialogElement>('dialog');
 const selected = ref(props.inventory.activeSlot);
 const selectedStorage = ref(0);
@@ -45,7 +45,7 @@ onBeforeUnmount(() => dialog.value?.close());
       </template>
       <button v-else class="button secondary" @click="movingFrom = null">Отменить перенос</button>
     </div>
-    <CampfirePanel :campfire="campfire" :selected="stack" :moving="movingFrom !== null" @fuel="emit('fuelFire', selected)" />
+    <CampfirePanel :campfire="campfire" :inventory="inventory" :selected="stack" :moving="movingFrom !== null" @fuel="emit('fuelFire', selected)" @upgrade="emit('upgradeFire', $event)" />
     <section class="storage-section" aria-labelledby="storage-title">
       <h3 id="storage-title">Склад лагеря · {{ storage.inventory.slots.filter(Boolean).length }} / {{ storage.inventory.slots.length }} слотов</h3>
       <template v-if="storage.inReach">

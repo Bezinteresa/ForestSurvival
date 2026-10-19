@@ -1,4 +1,4 @@
-import { BACKPACK_LEVELS, INVENTORY_CONFIG, ITEM_DEFINITIONS, isTool, type CommandResult, type InventorySnapshot, type ItemId, type ItemStack, type EquippedItemId, type UpgradeLevel } from '@forest-survival/shared';
+import { BACKPACK_LEVELS, INVENTORY_CONFIG, ITEM_DEFINITIONS, isTool, type CommandResult, type InventorySnapshot, type ItemId, type ItemStack, type EquippedItemId, type UpgradeLevel, type MaterialCost } from '@forest-survival/shared';
 
 export class Inventory {
   private slots: Array<ItemStack | null>;
@@ -71,6 +71,25 @@ export class Inventory {
     if (!stack || stack.id !== expectedItemId) return { accepted: false, reason: 'stale' };
     if (stack.amount < amount) return { accepted: false, reason: 'invalid' };
     this.slots[slot] = stack.amount === amount ? null : { ...stack, amount: stack.amount - amount };
+    return { accepted: true };
+  }
+
+  spendMaterials(cost: MaterialCost): CommandResult {
+    const entries = Object.entries(cost);
+    if (!entries.length || entries.some(([itemId, amount]) => !['wood', 'stone', 'scrap'].includes(itemId) || !Number.isSafeInteger(amount) || amount <= 0)) return { accepted: false, reason: 'invalid' };
+    const next = this.slots.map((stack) => stack ? { ...stack } : null);
+    for (const [itemId, amount] of entries) {
+      let remaining = amount;
+      for (let slot = 0; slot < next.length && remaining > 0; slot++) {
+        const stack = next[slot];
+        if (!stack || stack.itemId !== itemId) continue;
+        const used = Math.min(remaining, stack.amount);
+        next[slot] = used === stack.amount ? null : { ...stack, amount: stack.amount - used };
+        remaining -= used;
+      }
+      if (remaining > 0) return { accepted: false, reason: 'insufficient-materials' };
+    }
+    this.slots = next;
     return { accepted: true };
   }
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CAMPFIRE_CONFIG, NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, TEST_WORLD } from '@forest-survival/shared';
+import { CAMPFIRE_CONFIG, NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, TEST_MATERIAL_NODES, TEST_WORLD } from '@forest-survival/shared';
 import { Game } from '../core/Game';
 import { FakeScheduler } from '../core/FakeScheduler.test-helper';
 import { LocalSession } from './LocalSession';
@@ -17,8 +17,9 @@ function walkTo(session: LocalSession, x: number, z: number) {
   }
   throw new Error('Cannot reach test destination');
 }
-async function collectWood() {
+async function collectWood(withPickaxe = false) {
   const session = await setup();
+  if (withPickaxe) expect(session.sendCommand({ type: 'transfer-item', direction: 'withdraw', slot: 0, expectedItemId: 'starter-pickaxe', requestId: 'take-pickaxe' }).accepted).toBe(true);
   walkTo(session, -2.4, 2);
   const tree = TEST_WORLD.trees[0]!;
   for (let hit = 0; hit < 4; hit++) {
@@ -34,6 +35,61 @@ async function collectWood() {
 }
 
 describe('campfire with local session and real physics', () => {
+  it('buys a level using normally gathered materials, excludes storage and rejects repeated or stale purchases', async () => {
+    const session = await collectWood(true);
+    const pickaxe = session.getSnapshot().gameplay.inventory.slots.findIndex((stack) => stack?.itemId === 'pickaxe');
+    session.sendCommand({ type: 'select-slot', slot: pickaxe, requestId: 'pickaxe-in-hand' });
+    const rock = TEST_MATERIAL_NODES[0]!;
+    walkTo(session, -1.5, 5);
+    walkTo(session, 1.2, 5);
+    for (let hit = 0; hit < 3; hit++) {
+      const player = session.getSnapshot().player.position;
+      expect(session.sendCommand({ type: 'use-item', yaw: Math.atan2(rock.position.x - player.x, rock.position.z - player.z), requestId: 'mine-' + hit }).accepted).toBe(true);
+      advance(session, 42);
+    }
+    walkTo(session, rock.position.x, rock.position.z);
+    for (const item of session.getSnapshot().gameplay.loot) expect(session.sendCommand({ type: 'pickup', targetId: item.id, requestId: 'pickup-' + item.id }).accepted).toBe(true);
+    walkTo(session, 1.2, 5);
+    walkTo(session, -1.5, 5);
+    walkTo(session, -1.5, -1);
+    const stoneSlot = session.getSnapshot().gameplay.inventory.slots.findIndex((stack) => stack?.itemId === 'stone');
+    const stone = session.getSnapshot().gameplay.inventory.slots[stoneSlot]!;
+    expect(session.sendCommand({ type: 'transfer-item', direction: 'deposit', slot: stoneSlot, expectedItemId: stone.id, requestId: 'store-stone' }).accepted).toBe(true);
+    walkTo(session, -1.5, 2.8);
+    const stored = session.getSnapshot();
+    expect(session.sendCommand({ type: 'upgrade-fire', expectedLevel: 1, requestId: 'no-stone-in-bag' }).reason).toBe('insufficient-materials');
+    expect(session.getSnapshot().gameplay.inventory).toEqual(stored.gameplay.inventory);
+    expect(session.getSnapshot().gameplay.storage).toEqual(stored.gameplay.storage);
+    walkTo(session, -1.5, -1);
+    const storedSlot = session.getSnapshot().gameplay.storage.inventory.slots.findIndex((stack) => stack?.id === stone.id);
+    expect(session.sendCommand({ type: 'transfer-item', direction: 'withdraw', slot: storedSlot, expectedItemId: stone.id, requestId: 'withdraw-stone' }).accepted).toBe(true);
+    walkTo(session, -1.5, 2.8);
+    const before = session.getSnapshot();
+    expect(before.gameplay.debugTools).toBe(false);
+    expect(before.gameplay.campfire.lit).toBe(true);
+    const command = { type: 'upgrade-fire' as const, expectedLevel: 1 as const, requestId: 'buy-level' };
+    expect(session.sendCommand(command).accepted).toBe(true);
+    expect(session.sendCommand(command).duplicate).toBe(true);
+    const upgraded = session.getSnapshot();
+    expect(upgraded.gameplay.campfire).toMatchObject({ level: 2, safeRadius: 7, fuelSeconds: before.gameplay.campfire.fuelSeconds });
+    expect(upgraded.gameplay.inventory.slots.filter(Boolean)).toEqual(before.gameplay.inventory.slots.filter((stack) => stack?.itemId === 'axe' || stack?.itemId === 'pickaxe'));
+    expect(upgraded.vitals).toEqual(before.vitals);
+    expect(session.sendCommand({ ...command, requestId: 'stale-buy' }).reason).toBe('stale');
+    expect(session.getSnapshot().gameplay.inventory).toEqual(upgraded.gameplay.inventory);
+    expect(session.sendCommand({ type: 'upgrade-fire', expectedLevel: 2, requestId: 'no-price' }).reason).toBe('insufficient-materials');
+    walkTo(session, -6, 2.8);
+    expect(session.getSnapshot().gameplay.campfire.playerInside).toBe(true);
+    expect(session.sendCommand({ type: 'upgrade-fire', expectedLevel: 2, requestId: 'far-buy' }).reason).toBe('out-of-range');
+    session.pause();
+    const fuel = session.getSnapshot().gameplay.campfire.fuelSeconds;
+    expect(session.sendCommand({ type: 'upgrade-fire', expectedLevel: 2, requestId: 'paused-buy' }).reason).toBe('paused');
+    session.sendCommand({ type: 'reset-player', requestId: 'reset-position' });
+    expect(session.getSnapshot().gameplay.campfire).toMatchObject({ level: 2, fuelSeconds: fuel, zoneRadius: 7 });
+    const fresh = await setup();
+    expect(fresh.getSnapshot().gameplay.campfire).toMatchObject({ level: 1, zoneRadius: 5 });
+    expect(fresh.getSnapshot().gameplay.campfire.fuelSeconds).toBeCloseTo(57);
+  });
+
   it('harvests wood, fuels by interaction once, extinguishes and relights without granting health', async () => {
     const session = await collectWood();
     const slot = session.getSnapshot().gameplay.inventory.slots.findIndex((stack) => stack?.itemId === 'wood');
@@ -64,6 +120,7 @@ describe('campfire with local session and real physics', () => {
     expect(ended.status).toBe('ended');
     expect(ended.gameplay.campfire.fuelSeconds).toBeGreaterThan(0);
     expect(session.sendCommand({ type: 'fuel-fire', slot, expectedItemId: id, requestId: 'dead-fuel' }).reason).toBe('dead');
+    expect(session.sendCommand({ type: 'upgrade-fire', expectedLevel: 1, requestId: 'dead-upgrade' }).reason).toBe('dead');
     session.start();
     advance(session, 60);
     expect(session.getSnapshot()).toEqual(ended);
