@@ -30,6 +30,8 @@ describe('world clock through the real local simulation', () => {
     expect(snapshot.clock).toMatchObject({ phase: 'day', physicalCycles: 1, creditedDays: 1, cycleNumber: 2, dayMultiplier: 1, lastDawnAt: 240 });
     expect(snapshot.clock.secondsRemaining).toBeCloseTo(179);
     expect(snapshot.vitals.hunger).toBeCloseTo(39.75);
+    expect(snapshot.vitals.health).toBeCloseTo(50, 6);
+    expect(snapshot.vitals.cold).toMatchObject({ exposed: false, exposureSeconds: 0, freezing: false });
     expect(snapshot.gameplay.campfire.fuelSeconds).toBe(0);
     expect(dawns).toEqual([240]);
     expect(run.lastFrame()?.clock).toEqual(snapshot.clock);
@@ -37,7 +39,7 @@ describe('world clock through the real local simulation', () => {
     expect(run.session.getSnapshot().clock).toEqual(snapshot.clock);
   });
 
-  it('uses identical fixed steps at x20 for movement, hunger, fuel and one-shot input', async () => {
+  it.each([20, 200])('uses identical fixed steps at x20 over %i seconds for movement, hunger, cold, fuel and one-shot input', async (seconds) => {
     const normal = await setup(true);
     const fast = await setup(true);
     expect(fast.game.setSimulationSpeed(20).accepted).toBe(true);
@@ -46,12 +48,13 @@ describe('world clock through the real local simulation', () => {
       run.game.input.setMove('test', -1, 0);
       run.game.input.setHeld('Primary', 'test', true);
     }
-    renderFor(normal.scheduler, 20);
-    renderFor(fast.scheduler, 1);
+    renderFor(normal.scheduler, seconds);
+    renderFor(fast.scheduler, seconds / 20);
     expect(fast.session.getSnapshot()).toEqual(normal.session.getSnapshot());
-    expect(fast.session.getSnapshot().simulationTime).toBeCloseTo(20);
-    expect(fast.session.getSnapshot().vitals.hunger).toBeCloseTo(95);
-    expect(fast.session.getSnapshot().gameplay.campfire.fuelSeconds).toBeCloseTo(40);
+    expect(fast.session.getSnapshot().simulationTime).toBeCloseTo(seconds);
+    expect(fast.session.getSnapshot().vitals.hunger).toBeCloseTo(100 - seconds * 0.25);
+    expect(fast.session.getSnapshot().vitals.health).toBeCloseTo(seconds === 200 ? 90 : 100);
+    expect(fast.session.getSnapshot().gameplay.campfire.fuelSeconds).toBeCloseTo(Math.max(0, 60 - seconds));
     expect(send.mock.calls.filter(([command]) => command.type === 'use-item')).toHaveLength(1);
   });
 
@@ -89,8 +92,9 @@ describe('world clock through the real local simulation', () => {
     renderFor(run.scheduler, 22);
     const ended = run.session.getSnapshot();
     expect(ended.status).toBe('ended');
-    expect(ended.simulationTime).toBeCloseTo(420);
-    expect(ended.clock).toMatchObject({ phase: 'night', cycleNumber: 2, physicalCycles: 1, creditedDays: 1 });
+    expect(ended.simulationTime).toBeCloseTo(410);
+    expect(ended.vitals.deathAt).toBeCloseTo(410);
+    expect(ended.clock).toMatchObject({ phase: 'day', cycleNumber: 2, physicalCycles: 1, creditedDays: 1 });
     expect(run.scheduler.pending.size).toBe(0);
     expect(run.game.setSimulationSpeed(1).reason).toBe('dead');
     run.game.start();

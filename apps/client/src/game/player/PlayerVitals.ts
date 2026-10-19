@@ -6,6 +6,8 @@ export class PlayerVitals {
   private hunger: number;
   private deathAt: number | null = null;
   private deathReason: VitalsSnapshot['deathReason'] = null;
+  private coldExposed = false;
+  private coldExposureSeconds = 0;
 
   constructor(initial: { health?: number; hunger?: number } = {}) {
     this.health = this.clamp(initial.health, SURVIVAL_CONFIG.maxHealth);
@@ -21,17 +23,40 @@ export class PlayerVitals {
     return true;
   }
 
-  step(dt: number, now: number, sprinting = false): void {
+  setColdEnvironment(exposed: boolean): void {
+    if (this.dead) return;
+    this.coldExposed = exposed;
+    if (!exposed) this.coldExposureSeconds = 0;
+  }
+
+  step(dt: number, now: number, sprinting = false, exposedToCold = false): void {
     if (this.dead || !Number.isFinite(dt) || dt <= 0 || !Number.isFinite(now) || now < dt) return;
+    this.setColdEnvironment(exposedToCold);
     const hungerPerSecond = SURVIVAL_CONFIG.hungerPerSecond * (sprinting ? SURVIVAL_CONFIG.sprintHungerMultiplier : 1);
     const untilEmpty = this.hunger / hungerPerSecond;
-    this.hunger = Math.max(0, this.hunger - dt * hungerPerSecond);
+    const untilFreezing = exposedToCold ? Math.max(0, SURVIVAL_CONFIG.coldGraceSeconds - this.coldExposureSeconds) : Infinity;
+    // Both damage sources share one timeline, including the step that crosses zero hunger or the cold grace period.
+    const boundaries = [Math.min(dt, untilEmpty), Math.min(dt, untilFreezing), dt].sort((a, b) => a - b);
+    let start = 0;
+    let aliveFor = dt;
+    for (const end of boundaries) {
+      if (end <= start) continue;
+      const starving = start >= untilEmpty;
+      const freezing = start >= untilFreezing;
+      const damagePerSecond = (starving ? SURVIVAL_CONFIG.starvationDamagePerSecond : 0) + (freezing ? SURVIVAL_CONFIG.coldDamagePerSecond : 0);
+      if (damagePerSecond > 0) {
+        const duration = Math.min(end - start, this.health / damagePerSecond);
+        this.takeDamage((end - start) * damagePerSecond, now - dt + start + duration, starving ? 'starvation' : 'cold');
+        if (this.dead) { aliveFor = start + duration; break; }
+      }
+      start = end;
+    }
+    this.hunger = Math.max(0, this.hunger - aliveFor * hungerPerSecond);
     if (this.hunger < EPSILON) this.hunger = 0;
-    const starvingFor = Math.max(0, dt - untilEmpty);
-    if (starvingFor <= 0) return;
-    const damage = starvingFor * SURVIVAL_CONFIG.starvationDamagePerSecond;
-    const diedAt = now - dt + Math.max(0, untilEmpty) + this.health / SURVIVAL_CONFIG.starvationDamagePerSecond;
-    this.takeDamage(damage, Math.min(now, diedAt), 'starvation');
+    if (exposedToCold) {
+      this.coldExposureSeconds += aliveFor;
+      if (Math.abs(this.coldExposureSeconds - SURVIVAL_CONFIG.coldGraceSeconds) < EPSILON) this.coldExposureSeconds = SURVIVAL_CONFIG.coldGraceSeconds;
+    }
   }
 
   takeDamage(amount: number, now: number, cause: NonNullable<VitalsSnapshot['deathReason']> = 'damage'): boolean {
@@ -45,6 +70,6 @@ export class PlayerVitals {
     return true;
   }
 
-  snapshot(): VitalsSnapshot { return { health: this.health, maxHealth: SURVIVAL_CONFIG.maxHealth, hunger: this.hunger, maxHunger: SURVIVAL_CONFIG.maxHunger, dead: this.dead, deathAt: this.deathAt, deathReason: this.deathReason }; }
+  snapshot(): VitalsSnapshot { return { health: this.health, maxHealth: SURVIVAL_CONFIG.maxHealth, hunger: this.hunger, maxHunger: SURVIVAL_CONFIG.maxHunger, dead: this.dead, deathAt: this.deathAt, deathReason: this.deathReason, cold: { exposed: this.coldExposed, exposureSeconds: this.coldExposureSeconds, graceSeconds: SURVIVAL_CONFIG.coldGraceSeconds, damagePerSecond: SURVIVAL_CONFIG.coldDamagePerSecond, freezing: this.coldExposed && this.coldExposureSeconds >= SURVIVAL_CONFIG.coldGraceSeconds } }; }
   private clamp(value: number | undefined, maximum: number): number { return value === undefined || !Number.isFinite(value) ? maximum : Math.max(0, Math.min(maximum, value)); }
 }

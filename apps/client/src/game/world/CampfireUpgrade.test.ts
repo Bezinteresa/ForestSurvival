@@ -28,7 +28,7 @@ describe('campfire level purchases', () => {
     fire.step(60);
     expect(fire.snapshot(player, true)).toMatchObject({ level: 3, zoneRadius: 9, safeRadius: 0, lit: false });
     bag.insert({ id: 'fuel', itemId: 'wood', amount: 1 });
-    fire.addWood(bag, 1, 'fuel', player, queries());
+    fire.addFuel(bag, 1, 'fuel', player, queries());
     expect(fire.snapshot(player, true)).toMatchObject({ level: 3, safeRadius: 9, fuelSeconds: 30 });
   });
 
@@ -86,7 +86,7 @@ describe('campfire level purchases', () => {
     (offer as { safeRadius: number }).safeRadius = 999;
     expect(fire.snapshot(player, true).nextUpgrade?.cost).toEqual({ wood: 3, stone: 3 });
     expect(fire.snapshot(player, true).nextUpgrade?.safeRadius).toBe(7);
-    fire.addWood(bag, 1, 'wood-a', player, queries());
+    fire.addFuel(bag, 1, 'wood-a', player, queries());
     expect(fire.snapshot(player, true)).toMatchObject({ level: 1, safeRadius: 5, fuelSeconds: 90 });
     expect(fire.upgrade(1, bag, player, queries()).accepted).toBe(true);
     expect(bag.count('wood')).toBe(2);

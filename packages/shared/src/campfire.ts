@@ -1,5 +1,7 @@
 import type { Vector3Data } from './index';
-import type { MaterialCost } from './items';
+import type { FuelId, MaterialCost } from './items';
+
+export const FUEL_DEFINITIONS = { wood: { seconds: 30 }, coal: { seconds: 60 } } as const satisfies Record<FuelId, { seconds: number }>;
 
 export type CampfireLevel = 1 | 2 | 3;
 export const CAMPFIRE_MAX_LEVEL: CampfireLevel = 3;
@@ -29,7 +31,8 @@ export const CAMPFIRE_CONFIG = {
   range: 2.6,
   initialFuelSeconds: 60,
   maxFuelSeconds: 180,
-  secondsPerWood: 30,
+  secondsPerWood: FUEL_DEFINITIONS.wood.seconds,
+  secondsPerCoal: FUEL_DEFINITIONS.coal.seconds,
   safeRadius: CAMPFIRE_LEVELS[1].safeRadius,
   safeHeight: 3,
 } as const;
@@ -45,6 +48,7 @@ export interface CampfireSnapshot {
   readonly fuelSeconds: number;
   readonly maxFuelSeconds: number;
   readonly secondsPerWood: number;
+  readonly secondsPerCoal: number;
   readonly lit: boolean;
   /** Effective protection radius: zero when extinguished. */
   readonly safeRadius: number;

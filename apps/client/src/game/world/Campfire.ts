@@ -1,4 +1,4 @@
-import { CAMPFIRE_CONFIG, CAMPFIRE_LEVELS, CAMPFIRE_MAX_LEVEL, nextCampfireUpgrade, type CampfireLevel, type CampfireSnapshot, type CommandResult, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
+import { CAMPFIRE_CONFIG, CAMPFIRE_LEVELS, CAMPFIRE_MAX_LEVEL, FUEL_DEFINITIONS, isFuel, nextCampfireUpgrade, type CampfireLevel, type CampfireSnapshot, type CommandResult, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
 import type { VisibilityQueries } from '../combat/TargetQuery';
 import type { Inventory } from '../items/Inventory';
 
@@ -21,6 +21,10 @@ export class Campfire {
       && Math.hypot(position.x - center.x, position.z - center.z) <= CAMPFIRE_LEVELS[this.level].safeRadius;
   }
 
+  warmthDuration(dt: number, position: Vector3Data): number {
+    return Number.isFinite(dt) && dt > 0 && this.contains(position) ? Math.min(dt, this.fuelSeconds) : 0;
+  }
+
   access(player: PlayerSnapshot, visibility: VisibilityQueries): CommandResult {
     const center = CAMPFIRE_CONFIG.position;
     const target = { ...center, y: center.y + CAMPFIRE_CONFIG.targetHeight };
@@ -29,16 +33,17 @@ export class Campfire {
     return { accepted: true };
   }
 
-  addWood(inventory: Inventory, slot: number, expectedItemId: string, player: PlayerSnapshot, visibility: VisibilityQueries): CommandResult {
+  addFuel(inventory: Inventory, slot: number, expectedItemId: string, player: PlayerSnapshot, visibility: VisibilityQueries): CommandResult {
     const access = this.access(player, visibility);
     if (!access.accepted) return access;
     const stack = inventory.getStack(slot);
     if (!stack || stack.id !== expectedItemId) return { accepted: false, reason: 'stale' };
-    if (stack.itemId !== 'wood') return { accepted: false, reason: 'wrong-fuel' };
-    if (this.fuelSeconds + CAMPFIRE_CONFIG.secondsPerWood > CAMPFIRE_CONFIG.maxFuelSeconds + EPSILON) return { accepted: false, reason: 'fire-full' };
+    if (!isFuel(stack.itemId)) return { accepted: false, reason: 'wrong-fuel' };
+    const seconds = FUEL_DEFINITIONS[stack.itemId].seconds;
+    if (this.fuelSeconds + seconds > CAMPFIRE_CONFIG.maxFuelSeconds + EPSILON) return { accepted: false, reason: 'fire-full' };
     const consumed = inventory.consume(slot, expectedItemId);
     if (!consumed.accepted) return consumed;
-    this.fuelSeconds = Math.min(CAMPFIRE_CONFIG.maxFuelSeconds, this.fuelSeconds + CAMPFIRE_CONFIG.secondsPerWood);
+    this.fuelSeconds = Math.min(CAMPFIRE_CONFIG.maxFuelSeconds, this.fuelSeconds + seconds);
     return { accepted: true };
   }
 
@@ -57,6 +62,6 @@ export class Campfire {
   }
 
   snapshot(player: PlayerSnapshot, inReach: boolean): CampfireSnapshot {
-    return { id: CAMPFIRE_CONFIG.id, level: this.level, maxLevel: CAMPFIRE_MAX_LEVEL, zoneRadius: CAMPFIRE_LEVELS[this.level].safeRadius, nextUpgrade: nextCampfireUpgrade(this.level), position: { ...CAMPFIRE_CONFIG.position }, fuelSeconds: this.fuelSeconds, maxFuelSeconds: CAMPFIRE_CONFIG.maxFuelSeconds, secondsPerWood: CAMPFIRE_CONFIG.secondsPerWood, lit: this.fuelSeconds > 0, safeRadius: this.fuelSeconds > 0 ? CAMPFIRE_LEVELS[this.level].safeRadius : 0, playerInside: this.contains(player.position), inReach };
+    return { id: CAMPFIRE_CONFIG.id, level: this.level, maxLevel: CAMPFIRE_MAX_LEVEL, zoneRadius: CAMPFIRE_LEVELS[this.level].safeRadius, nextUpgrade: nextCampfireUpgrade(this.level), position: { ...CAMPFIRE_CONFIG.position }, fuelSeconds: this.fuelSeconds, maxFuelSeconds: CAMPFIRE_CONFIG.maxFuelSeconds, secondsPerWood: CAMPFIRE_CONFIG.secondsPerWood, secondsPerCoal: CAMPFIRE_CONFIG.secondsPerCoal, lit: this.fuelSeconds > 0, safeRadius: this.fuelSeconds > 0 ? CAMPFIRE_LEVELS[this.level].safeRadius : 0, playerInside: this.contains(player.position), inReach };
   }
 }

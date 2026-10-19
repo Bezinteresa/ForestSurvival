@@ -44,8 +44,8 @@ export class GameplayView {
     for (const node of TEST_MATERIAL_NODES) {
       const group = new THREE.Group();
       group.position.set(node.position.x, node.position.y, node.position.z);
-      const geometry = node.kind === 'rock' ? new THREE.DodecahedronGeometry(1, 0) : new THREE.BoxGeometry(1.4, 2, 1.1);
-      const body = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: node.kind === 'rock' ? 0x7c8588 : 0x8d6250, roughness: 0.9, metalness: node.kind === 'rock' ? 0 : 0.4 }));
+      const geometry = node.kind === 'scrap-pile' ? new THREE.BoxGeometry(1.4, 2, 1.1) : new THREE.DodecahedronGeometry(1, 0);
+      const body = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: node.kind === 'coal-vein' ? 0x414953 : node.kind === 'rock' ? 0x7c8588 : 0x8d6250, roughness: 0.9, metalness: node.kind === 'scrap-pile' ? 0.4 : 0 }));
       body.scale.set(node.radius, node.height / 2, node.radius);
       body.position.y = node.height / 2;
       group.add(body);
@@ -125,7 +125,7 @@ export class GameplayView {
           this.lootGeometry ??= new THREE.BoxGeometry(0.55, 0.22, 0.28);
           let material = this.lootMaterials.get(item.itemId);
           if (!material) {
-            material = new THREE.MeshStandardMaterial({ color: { wood: 0xc69d60, stone: 0x9aa5aa, scrap: 0xb7785b, berries: 0xc34562 }[item.itemId], roughness: 1 });
+            material = new THREE.MeshStandardMaterial({ color: { wood: 0xc69d60, stone: 0x9aa5aa, scrap: 0xb7785b, coal: 0x414953, berries: 0xc34562 }[item.itemId], roughness: 1 });
             this.lootMaterials.set(item.itemId, material);
           }
           mesh = new THREE.Mesh(this.lootGeometry, material);

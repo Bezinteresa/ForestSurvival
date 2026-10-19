@@ -72,7 +72,8 @@ describe('survival loop with real local session', () => {
 
   it('ends once, closes inventory, cancels a windup, stops input and starts a fresh run', async () => {
     const session = await setup();
-    advance(session, Math.round(419.9 / SIMULATION_CONFIG.fixedStep) - 180);
+    // The unheated first night costs 50 HP; starvation then finishes the run at 410 s.
+    advance(session, Math.round(409.9 / SIMULATION_CONFIG.fixedStep) - 180);
     expect(session.getSnapshot().vitals.health).toBeCloseTo(0.5, 3);
     session.sendCommand({ type: 'use-item', yaw: 0, requestId: 'last-swing' });
     session.pause();

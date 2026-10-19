@@ -4,7 +4,7 @@ import { PlayerVitals } from '../player/PlayerVitals';
 import { GameplayWorld } from '../world/GameplayWorld';
 import { PhysicsWorld, interpolatePosition, type DebugGeometry } from '../world/PhysicsWorld';
 import type { GameSession } from './GameSession';
-import { WorldClock } from '@forest-survival/shared';
+import { WorldClock, type WorldClockSnapshot } from '@forest-survival/shared';
 
 export class LocalSession implements GameSession {
   private status: SessionStatus = 'ready';
@@ -50,12 +50,14 @@ export class LocalSession implements GameSession {
     this.physics.step(dt, motion.displacement, motion.jump);
     this.currentPlayer = { ...this.physics.getPlayerSnapshot(), yaw: this.gameplay.getAttackYaw(this.simulationTime) ?? motion.yaw };
     this.viewYaw = Math.atan2(Math.sin(input.cameraYaw), -Math.cos(input.cameraYaw));
+    const clockStart = this.clock.snapshot();
+    const warmFor = this.gameplay.warmthDuration(dt, this.currentPlayer.position);
     this.simulationTime += dt;
     this.clock.update(this.simulationTime);
     this.gameplay.step(dt);
     const horizontalDistance = Math.hypot(this.currentPlayer.position.x - this.previousPlayer.position.x, this.currentPlayer.position.z - this.previousPlayer.position.z);
     const sprinting = input.sprint && (motion.displacement.x !== 0 || motion.displacement.z !== 0) && horizontalDistance > SURVIVAL_CONFIG.minSprintMovementSpeed * dt;
-    this.vitals.step(dt, this.simulationTime, sprinting);
+    this.stepVitals(dt, sprinting, warmFor, clockStart);
     if (this.vitals.dead) {
       this.gameplay.end();
       this.status = 'ended';
@@ -132,8 +134,27 @@ export class LocalSession implements GameSession {
     }
     this.handledRequests.set(command.requestId, result);
     if (this.handledRequests.size > 512) this.handledRequests.delete(this.handledRequests.keys().next().value!);
+    if (result.accepted) this.syncColdEnvironment();
     this.publish();
     return { ...result };
+  }
+
+  private stepVitals(dt: number, sprinting: boolean, warmFor: number, clockStart: WorldClockSnapshot): void {
+    const phaseBoundary = Math.min(dt, clockStart.secondsRemaining);
+    const boundaries = [phaseBoundary, warmFor, dt].sort((a, b) => a - b);
+    let start = 0;
+    for (const end of boundaries) {
+      if (end <= start) continue;
+      const night = start < phaseBoundary ? clockStart.phase === 'night' : clockStart.phase === 'day';
+      this.vitals.step(end - start, this.simulationTime - dt + end, sprinting, night && start >= warmFor);
+      if (this.vitals.dead) break;
+      start = end;
+    }
+    this.syncColdEnvironment();
+  }
+
+  private syncColdEnvironment(): void {
+    this.vitals.setColdEnvironment(this.clock.snapshot().phase === 'night' && !this.gameplay.isWarm(this.currentPlayer.position));
   }
 
   getRenderPosition(alpha: number): Vector3Data {

@@ -6,7 +6,7 @@ import { Inventory } from '../items/Inventory';
 import { CampStorage } from '../items/CampStorage';
 import { PlayerVitals } from '../player/PlayerVitals';
 import { ForagingWorld } from './ForagingWorld';
-import { CAMPFIRE_CONFIG, type CampfireLevel } from '@forest-survival/shared';
+import { CAMPFIRE_CONFIG, FUEL_DEFINITIONS, isFuel, type CampfireLevel } from '@forest-survival/shared';
 import { Campfire } from './Campfire';
 
 interface ResourceDefinition extends TreeDefinition { readonly kind: ResourceKind }
@@ -43,15 +43,18 @@ export class GameplayWorld {
   getSelectedItem() { return this.inventory.getStack(this.inventory.selectedSlot); }
 
   step(dt: number): void { this.campfire.step(dt); }
+  warmthDuration(dt: number, position: Vector3Data): number { return this.campfire.warmthDuration(dt, position); }
+  isWarm(position: Vector3Data): boolean { return this.campfire.contains(position); }
 
   fuelFire(slot: number, expectedItemId: string, player: PlayerSnapshot, now: number): CommandResult {
     if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
-    const result = this.campfire.addWood(this.inventory, slot, expectedItemId, player, this.visibility);
+    const stack = this.inventory.getStack(slot);
+    const result = this.campfire.addFuel(this.inventory, slot, expectedItemId, player, this.visibility);
     const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = {
-      'out-of-range': 'Подойдите к костру.', blocked: 'Костёр закрыт препятствием.', stale: 'Слот изменился. Выберите древесину заново.',
-      'wrong-fuel': 'Выберите древесину в рюкзаке.', 'fire-full': 'Нет места для всей порции топлива. Древесина сохранена.',
+      'out-of-range': 'Подойдите к костру.', blocked: 'Костёр закрыт препятствием.', stale: 'Слот изменился. Выберите топливо заново.',
+      'wrong-fuel': 'Выберите древесину или уголь.', 'fire-full': 'Нет места для всей порции топлива. Предмет сохранён.',
     };
-    this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted ? 'Костёр: +' + CAMPFIRE_CONFIG.secondsPerWood + ' с · −1 древесина' : messages[result.reason!] ?? 'Не удалось добавить топливо.', at: now };
+    this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted && stack && isFuel(stack.itemId) ? 'Костёр: +' + FUEL_DEFINITIONS[stack.itemId].seconds + ' с · ' + ITEM_DEFINITIONS[stack.itemId].label + ' −1' : messages[result.reason!] ?? 'Не удалось добавить топливо.', at: now };
     return result;
   }
 
@@ -191,7 +194,7 @@ export class GameplayWorld {
     this.updateInteraction(player, viewYaw);
     if (this.interaction?.kind === 'campfire') {
       const stack = this.getSelectedItem();
-      return stack ? this.fuelFire(this.inventory.selectedSlot, stack.id, player, now) : this.reject('wrong-fuel', 'Выберите древесину в рюкзаке.', now);
+      return stack ? this.fuelFire(this.inventory.selectedSlot, stack.id, player, now) : this.reject('wrong-fuel', 'Выберите древесину или уголь.', now);
     }
     if (this.interaction?.kind === 'bush') return this.gather(this.interaction.id, player, now);
     if (this.interaction?.kind === 'storage') return { accepted: this.storage.canAccess(player, this.visibility) };

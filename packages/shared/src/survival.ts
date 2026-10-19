@@ -8,6 +8,8 @@ export const SURVIVAL_CONFIG = {
   sprintHungerMultiplier: 2,
   minSprintMovementSpeed: 0.1, // Metres/second; ignore contact jitter after collision resolution.
   starvationDamagePerSecond: 5,
+  coldGraceSeconds: 10,
+  coldDamagePerSecond: 1,
 } as const;
 export const FOOD_DEFINITIONS = { berries: { hunger: 25 } } as const satisfies Record<FoodId, { hunger: number }>;
 
@@ -18,7 +20,14 @@ export interface VitalsSnapshot {
   readonly maxHunger: number;
   readonly dead: boolean;
   readonly deathAt: number | null;
-  readonly deathReason: 'starvation' | 'damage' | null;
+  readonly deathReason: 'starvation' | 'cold' | 'damage' | null;
+  readonly cold: {
+    readonly exposed: boolean;
+    readonly exposureSeconds: number;
+    readonly graceSeconds: number;
+    readonly damagePerSecond: number;
+    readonly freezing: boolean;
+  };
 }
 
 export interface BerryBushDefinition { readonly id: string; readonly position: Vector3Data; readonly stock: number }

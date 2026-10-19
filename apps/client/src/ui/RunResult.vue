@@ -12,7 +12,7 @@ onMounted(() => restart.value?.focus({ preventScroll: true }));
     <section class="run-result" aria-labelledby="run-result-title" data-ui>
       <p class="eyebrow">ЗАБЕГ ЗАВЕРШЁН</p>
       <h1 id="run-result-title">Вы погибли</h1>
-      <p>{{ vitals.deathReason === 'starvation' ? 'Здоровье закончилось из-за голода.' : 'Здоровье закончилось.' }}</p>
+      <p>{{ vitals.deathReason === 'starvation' ? 'Здоровье закончилось из-за голода.' : vitals.deathReason === 'cold' ? 'Вы замёрзли ночью вне зоны горящего костра.' : 'Здоровье закончилось.' }}</p>
       <p>Время в лесу: <strong>{{ elapsed }}</strong></p>
       <p>Пережито ночей: {{ clock.physicalCycles }} · зачтено дней: {{ clock.creditedDays }}</p>
       <div class="actions"><button ref="restart" class="button primary" @click="emit('restart')">Новый забег</button><button class="button secondary" @click="emit('leave')">В меню</button></div>
