@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef } from 'vue';
-import { itemLabel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
+import { itemLabel, isFood, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
 import type { Game } from './game/core/Game';
 import type { InputState } from './game/input/InputState';
 import type { ControlStatus } from './game/input/BrowserInput';
 import { loadControlSettings, saveControlSettings, sanitizeControlSettings, type ControlSettings } from './game/input/ControlSettings';
 import TouchControls from './ui/TouchControls.vue';
 import InventoryPanel from './ui/InventoryPanel.vue';
+import PlayerStatus from './ui/PlayerStatus.vue';
+import RunResult from './ui/RunResult.vue';
 
 const host = useTemplateRef<HTMLDivElement>('scene');
 const snapshot = shallowRef<SessionSnapshot>();
@@ -37,6 +39,9 @@ const materials = computed(() => {
   for (const stack of gameplay.value?.inventory.slots ?? []) if (stack && (stack.itemId === 'wood' || stack.itemId === 'stone' || stack.itemId === 'scrap')) totals[stack.itemId] += stack.amount;
   return totals;
 });
+const ended = computed(() => snapshot.value?.status === 'ended');
+const foodInHand = computed(() => { const inventory = gameplay.value?.inventory; const stack = inventory?.slots[inventory.activeSlot]; return !!stack && isFood(stack.itemId); });
+const canPlay = computed(() => active.value && !paused.value && !ended.value);
 const paused = computed(() => snapshot.value?.status === 'paused');
 const elapsed = computed(() => {
   const seconds = Math.floor(snapshot.value?.simulationTime ?? 0);
@@ -121,6 +126,8 @@ function reportInventory(result?: CommandResult): void {
     'out-of-range': 'Подойдите к складу.',
     stale: 'Слот изменился. Выберите предмет заново.',
     forbidden: 'Режим разработки отключён.',
+    satiated: 'Вы уже сыты. Еда сохранена.',
+    dead: 'Забег завершён.',
   };
   inventoryNote.value = result?.accepted ? 'Готово.' : result?.reason ? messages[result.reason] ?? 'Операция недоступна.' : 'Операция недоступна.';
 }
@@ -136,6 +143,10 @@ function transferItem(direction: 'deposit' | 'withdraw', slot: number): void {
   const container = direction === 'deposit' ? gameplay.value?.inventory : gameplay.value?.storage.inventory;
   const stack = container?.slots[slot];
   if (stack) reportInventory(game?.sendCommand({ type: 'transfer-item', direction, slot, expectedItemId: stack.id, requestId: 'ui-' + (++requestNumber) }));
+}
+function consumeItem(slot: number): void {
+  const stack = gameplay.value?.inventory.slots[slot];
+  if (stack) reportInventory(game?.sendCommand({ type: 'consume-item', slot, expectedItemId: stack.id, requestId: 'ui-' + (++requestNumber) }));
 }
 function debugUpgrade(target: 'tool' | 'backpack', slot: number): void { reportInventory(game?.sendCommand({ type: 'debug-upgrade', target, slot, level: 2, requestId: 'ui-' + (++requestNumber) })); }
 
@@ -157,35 +168,37 @@ onBeforeUnmount(() => { disposed = true; stop(); });
     <div ref="scene" class="scene" />
     <header class="topbar">
       <div class="brand"><span class="brand-mark" aria-hidden="true">▲</span><div><strong>FOREST SURVIVAL</strong><span>Ранний прототип</span></div></div>
-      <div class="header-actions" data-ui><span class="mode-badge"><span aria-hidden="true" />Одиночная сцена</span><button v-if="active && !paused" class="button secondary" @click="game?.toggleInventory()">Рюкзак</button><button v-if="active && !paused" class="button secondary" @click="togglePause">Меню</button></div>
+      <div class="header-actions" data-ui><span class="mode-badge"><span aria-hidden="true" />Одиночная сцена</span><button v-if="canPlay" class="button secondary" @click="game?.toggleInventory()">Рюкзак</button><button v-if="canPlay" class="button secondary" @click="togglePause">Меню</button></div>
     </header>
 
     <section v-if="!active" class="welcome-panel" aria-labelledby="welcome-title">
       <p class="eyebrow">ПЕРВЫЙ ШАГ В ЛЕС</p>
       <h1 id="welcome-title">Всё начинается<br />с поляны.</h1>
       <p class="intro">Основа будущего выживания: персонаж, деревья и препятствия на небольшой тестовой площадке.</p>
-      <p class="scope-note">Подойдите к дереву, нанесите несколько ударов топором и подберите древесину. На телефоне доступны стик и экранные кнопки.</p>
+      <p class="scope-note">Подойдите к дереву, нанесите несколько ударов топором и подберите древесину. Собирайте ягоды с кустов и ешьте, чтобы не потерять здоровье от голода. На телефоне доступны стик и экранные кнопки.</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <button class="button primary" :disabled="loading" @click="start">{{ loading ? 'Подготавливаем поляну…' : error ? 'Попробовать снова' : 'Открыть поляну' }}<span aria-hidden="true">↗</span></button>
       <p class="footnote">Локальная сессия · без подключения к серверу</p>
     </section>
 
-    <div v-if="active && !paused" class="play-readings"><span>{{ elapsed }}</span><span>{{ snapshot?.player.grounded ? 'На земле' : 'В воздухе' }}</span><span>{{ controls.firstPerson ? 'Первое лицо' : controls.cameraLocked ? 'Камера фиксирована' : 'Третье лицо' }}</span></div>
-    <div v-if="active && !paused && !inventoryOpen" class="crosshair" aria-hidden="true">+</div>
-    <p v-if="active && !paused && controls.message" class="control-message" role="status">{{ controls.message }}</p>
-    <div v-if="active && !paused && gameplay" class="resource-count">Ресурсы <strong>{{ materials.wood }} дер. · {{ materials.stone }} кам. · {{ materials.scrap }} мет.</strong><span>Слоты {{ gameplay.inventory.slots.filter(Boolean).length }} / {{ gameplay.inventory.slots.length }}</span></div>
-    <div v-if="active && !paused && !inventoryOpen && gameplay?.interaction" class="target-hint">
+    <div v-if="canPlay" class="play-readings"><span>{{ elapsed }}</span><span>{{ snapshot?.player.grounded ? 'На земле' : 'В воздухе' }}</span><span>{{ controls.firstPerson ? 'Первое лицо' : controls.cameraLocked ? 'Камера фиксирована' : 'Третье лицо' }}</span></div>
+    <div v-if="canPlay && !inventoryOpen" class="crosshair" aria-hidden="true">+</div>
+    <p v-if="canPlay && controls.message" class="control-message" role="status">{{ controls.message }}</p>
+    <div v-if="canPlay && gameplay" class="resource-count">Ресурсы <strong>{{ materials.wood }} дер. · {{ materials.stone }} кам. · {{ materials.scrap }} мет.</strong><span>Слоты {{ gameplay.inventory.slots.filter(Boolean).length }} / {{ gameplay.inventory.slots.length }}</span></div>
+    <div v-if="canPlay && !inventoryOpen && gameplay?.interaction" class="target-hint">
       <strong>{{ gameplay.interaction.label }}</strong>
       <template v-if="gameplay.interaction.health !== undefined"><span>{{ gameplay.interaction.health }} / {{ gameplay.interaction.maxHealth }}</span><progress :value="gameplay.interaction.health" :max="gameplay.interaction.maxHealth" /></template>
-      <span>{{ gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
+      <span>{{ gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : gameplay.interaction.kind === 'bush' ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
     </div>
-    <p v-if="active && !paused && feedback" class="game-feedback" role="status">{{ feedback }}</p>
-    <div v-if="active && !paused && !inventoryOpen && gameplay" class="equipment-bar" data-ui>
+    <p v-if="canPlay && feedback" class="game-feedback" role="status">{{ feedback }}</p>
+    <div v-if="canPlay && !inventoryOpen && gameplay" class="equipment-bar" data-ui>
       <button v-for="(item, slot) in gameplay.inventory.slots.slice(0, 5)" :key="slot" :class="{ selected: gameplay.inventory.activeSlot === slot }" :aria-pressed="gameplay.inventory.activeSlot === slot" @pointerdown.prevent @click="selectSlot(slot)"><span>{{ slot + 1 }}</span><strong>{{ item ? itemLabel(item) : 'Пусто' }}</strong><span v-if="item">×{{ item.amount }}</span></button>
       <progress v-if="gameplay.attack.phase !== 'idle'" :value="gameplay.attack.progress" max="1" aria-label="Восстановление после удара" />
     </div>
-    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="!paused && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="gameplay?.interaction?.kind === 'pickup' || gameplay?.interaction?.kind === 'storage'" :interaction-label="gameplay?.interaction?.kind === 'storage' ? 'Склад' : 'Взять'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
-    <InventoryPanel v-if="active && !paused && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
+    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="gameplay?.interaction?.kind === 'pickup' || gameplay?.interaction?.kind === 'storage' || gameplay?.interaction?.kind === 'bush'" :interaction-label="gameplay?.interaction?.kind === 'storage' ? 'Склад' : gameplay?.interaction?.kind === 'bush' ? 'Собрать' : 'Взять'" :primary-label="foodInHand ? 'Есть' : 'Удар'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
+    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
+    <PlayerStatus v-if="canPlay && snapshot" :vitals="snapshot.vitals" />
+    <RunResult v-if="ended && snapshot" :vitals="snapshot.vitals" :elapsed="elapsed" @restart="start" @leave="stop" />
     <div v-if="active && paused" class="pause-backdrop" />
     <section v-if="active && paused" class="scene-panel" aria-label="Меню паузы" data-ui>
       <p class="eyebrow">ТЕСТОВАЯ ПОЛЯНА</p>
@@ -212,6 +225,6 @@ onBeforeUnmount(() => { disposed = true; stop(); });
       <button class="text-button leave" @click="stop">Завершить сцену</button>
     </section>
 
-    <footer class="bottom-note"><span class="status-dot" aria-hidden="true" />{{ loading ? 'Загрузка 3D и физики' : active ? paused ? 'Сцена приостановлена' : 'Сцена запущена' : 'Готово к запуску' }}</footer>
+    <footer class="bottom-note"><span class="status-dot" aria-hidden="true" />{{ loading ? 'Загрузка 3D и физики' : active ? ended ? 'Забег завершён' : paused ? 'Сцена приостановлена' : 'Сцена запущена' : 'Готово к запуску' }}</footer>
   </main>
 </template>

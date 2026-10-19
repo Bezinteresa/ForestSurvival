@@ -140,3 +140,17 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 .storage-section h3 { font-size: 15px; margin: 0; }
 .debug-upgrades { margin-top: 20px; color: #e3bf83; font-size: 12px; }
 .debug-upgrades summary { cursor: pointer; margin-bottom: 12px; }
+
+.player-status { position: absolute; z-index: 1; left: 36px; bottom: 84px; width: 220px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px; border-radius: 10px; background: #102017e8; pointer-events: none; }
+.player-status label { display: block; font-size: 11px; color: #d3dfcb; }
+.player-status strong { display: block; margin-top: 3px; font-size: 12px; }
+.player-status progress { width: 100%; height: 6px; display: block; margin-top: 5px; accent-color: #b6d58c; }
+.player-status .starving { color: #ffc3a8; }
+.player-status .starving progress { accent-color: #e8a879; }
+.run-result-backdrop { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 16px; background: #08130dc9; }
+.run-result { width: min(400px, 100%); max-height: calc(100svh - 32px); overflow: auto; padding: 24px; border: 1px solid #ffffff40; border-radius: 16px; background: #14231b; }
+.run-result h1 { font-size: 32px; }
+.run-result > p { font-size: 13px; line-height: 1.6; }
+.run-result .actions { margin-top: 24px; }
+@media (any-pointer: coarse) { .player-status { left: 24px; bottom: calc(max(20px, env(safe-area-inset-bottom)) + 212px); width: 166px; padding: 8px; gap: 8px; } .player-status label { font-size: 10px; } .player-status strong { font-size: 11px; } }
+@media (any-pointer: coarse) and (max-height: 560px) { .player-status { bottom: 140px; } .player-status strong { margin-top: 1px; } .player-status progress { margin-top: 3px; } }

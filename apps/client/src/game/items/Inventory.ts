@@ -65,6 +65,15 @@ export class Inventory {
     return { accepted: true };
   }
 
+  consume(slot: number, expectedItemId: string, amount = 1): CommandResult {
+    if (!this.validSlot(slot) || !Number.isInteger(amount) || amount < 1) return { accepted: false, reason: 'invalid' };
+    const stack = this.slots[slot];
+    if (!stack || stack.id !== expectedItemId) return { accepted: false, reason: 'stale' };
+    if (stack.amount < amount) return { accepted: false, reason: 'invalid' };
+    this.slots[slot] = stack.amount === amount ? null : { ...stack, amount: stack.amount - amount };
+    return { accepted: true };
+  }
+
   transferTo(destination: Inventory, slot: number, expectedItemId: string): CommandResult {
     if (destination === this || !this.validSlot(slot)) return { accepted: false, reason: 'invalid' };
     const stack = this.getStack(slot);

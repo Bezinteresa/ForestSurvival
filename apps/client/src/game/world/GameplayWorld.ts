@@ -1,9 +1,11 @@
-import { AXE_CONFIG, CAMP_STORAGE, ITEM_DEFINITIONS, PLAYER_CONFIG, RESOURCE_DEFINITIONS, TOOL_DAMAGE, TOOL_LEVELS, RESOURCE_CONFIG, TEST_WORLD, TRAINING_DUMMY, type CommandResult, type DummySnapshot, type GameplaySnapshot, type InteractionSnapshot, type LootSnapshot, type PlayerSnapshot, type TreeDefinition, type Vector3Data, type MaterialNodeDefinition, type ResourceKind, type ToolId } from '@forest-survival/shared';
+import { AXE_CONFIG, CAMP_STORAGE, FOOD_DEFINITIONS, TEST_BERRY_BUSHES, isFood, ITEM_DEFINITIONS, PLAYER_CONFIG, RESOURCE_DEFINITIONS, TOOL_DAMAGE, TOOL_LEVELS, RESOURCE_CONFIG, TEST_WORLD, TRAINING_DUMMY, type CommandResult, type DummySnapshot, type GameplaySnapshot, type InteractionSnapshot, type LootSnapshot, type PlayerSnapshot, type TreeDefinition, type Vector3Data, type MaterialNodeDefinition, type ResourceKind, type ToolId, type BerryBushDefinition } from '@forest-survival/shared';
 import { AttackController } from '../combat/AttackController';
 import { DamageReceiver } from '../combat/DamageReceiver';
 import { selectTarget, type TargetPoint, type VisibilityQueries } from '../combat/TargetQuery';
 import { Inventory } from '../items/Inventory';
 import { CampStorage } from '../items/CampStorage';
+import { PlayerVitals } from '../player/PlayerVitals';
+import { ForagingWorld } from './ForagingWorld';
 
 interface ResourceDefinition extends TreeDefinition { readonly kind: ResourceKind }
 
@@ -14,6 +16,7 @@ export interface GameplayQueries extends VisibilityQueries {
 export class GameplayWorld {
   private readonly attacks = new AttackController();
   private readonly storage = new CampStorage();
+  private readonly foraging: ForagingWorld;
   private storageInReach = false;
   private attackTool: { tool: ToolId; damage: number } | undefined;
   private readonly resources: Array<{ definition: ResourceDefinition; receiver: DamageReceiver }>;
@@ -23,12 +26,43 @@ export class GameplayWorld {
   private lastHit: GameplaySnapshot['lastHit'] = null;
   private interaction: InteractionSnapshot | null = null;
 
-  constructor(private readonly visibility: GameplayQueries, trees: readonly TreeDefinition[] = TEST_WORLD.trees, private readonly inventory = new Inventory(), nodes: readonly MaterialNodeDefinition[] = [], private readonly debugTools = false) {
+  constructor(private readonly visibility: GameplayQueries, trees: readonly TreeDefinition[] = TEST_WORLD.trees, private readonly inventory = new Inventory(), nodes: readonly MaterialNodeDefinition[] = [], private readonly debugTools = false, bushes: readonly BerryBushDefinition[] = TEST_BERRY_BUSHES) {
+    this.foraging = new ForagingWorld(bushes);
     const definitions: ResourceDefinition[] = [
       ...trees.map((tree) => ({ ...tree, kind: 'tree' as const })),
       ...nodes.map((node) => ({ ...node, trunkHeight: node.height })),
     ];
     this.resources = definitions.map((definition) => ({ definition, receiver: new DamageReceiver(definition.id, RESOURCE_DEFINITIONS[definition.kind].health, RESOURCE_DEFINITIONS[definition.kind].tool) }));
+  }
+
+  getSelectedItem() { return this.inventory.getStack(this.inventory.selectedSlot); }
+
+  end(): void {
+    this.attacks.cancel();
+    this.interaction = null;
+    this.storageInReach = false;
+  }
+
+  consumeFood(slot: number, expectedItemId: string, vitals: PlayerVitals, now: number): CommandResult {
+    if (vitals.dead) return { accepted: false, reason: 'dead' };
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    const stack = this.inventory.getStack(slot);
+    if (!stack || stack.id !== expectedItemId) return { accepted: false, reason: 'stale' };
+    if (!isFood(stack.itemId)) return { accepted: false, reason: 'invalid' };
+    const food = FOOD_DEFINITIONS[stack.itemId];
+    if (!vitals.canEat(food.hunger)) return this.reject('satiated', 'Вы уже сыты.', now);
+    const consumed = this.inventory.consume(slot, expectedItemId);
+    if (!consumed.accepted) return consumed;
+    vitals.eat(food.hunger);
+    this.feedback = { kind: 'info', text: 'Ягоды съедены.', at: now };
+    return { accepted: true };
+  }
+
+  gather(id: string, player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    const result = this.foraging.gather(id, player, this.inventory, this.visibility);
+    this.feedback = { kind: result.accepted ? 'pickup' : 'blocked', text: result.accepted ? '+1 · Ягоды' : result.reason === 'inventory-full' ? 'Рюкзак заполнен.' : 'Не удалось собрать ягоды. Подойдите по свободному пути.', at: now };
+    return result;
   }
 
   selectSlot(slot: number, now: number): CommandResult {
@@ -124,6 +158,7 @@ export class GameplayWorld {
 
   interact(player: PlayerSnapshot, now: number, viewYaw: number): CommandResult {
     this.updateInteraction(player, viewYaw);
+    if (this.interaction?.kind === 'bush') return this.gather(this.interaction.id, player, now);
     if (this.interaction?.kind === 'storage') return { accepted: this.storage.canAccess(player, this.visibility) };
     return this.interaction?.kind === 'pickup' ? this.pickup(this.interaction.id, player, now) : { accepted: false, reason: 'missing' };
   }
@@ -136,6 +171,7 @@ export class GameplayWorld {
       debugTools: this.debugTools,
       equippedItem: this.inventory.equippedItem,
       bag: { wood: this.inventory.count('wood'), capacity: this.inventory.capacityFor('wood') },
+      bushes: this.foraging.snapshot(),
       resources: this.resources.map(({ definition, receiver }) => ({ id: definition.id, kind: definition.kind, requiredTool: RESOURCE_DEFINITIONS[definition.kind].tool, position: { ...definition.position }, radius: definition.radius, trunkHeight: definition.trunkHeight, health: receiver.currentHealth, maxHealth: receiver.maxHealth, exhausted: receiver.exhausted })),
       loot: [...this.loot.values()].map((item) => ({ ...item, position: { ...item.position } })),
       dummy,
@@ -165,6 +201,8 @@ export class GameplayWorld {
       this.interaction = { id: item.id, kind: 'pickup', label: 'Взять: ' + ITEM_DEFINITIONS[stack.itemId].label + ' ×' + stack.amount };
       return;
     }
+    const bush = this.foraging.target(player, yaw, this.visibility);
+    if (bush) { this.interaction = { id: bush.id, kind: 'bush', label: 'Собрать ягоды' }; return; }
     const storage = CAMP_STORAGE;
     if (this.storageInReach && selectTarget([{ id: storage.id, position: storage.position, radius: 0 }], origin, yaw, storage.range, AXE_CONFIG.halfAngle, 1.5, this.visibility)) {
       this.interaction = { id: storage.id, kind: 'storage', label: 'Открыть склад лагеря' };

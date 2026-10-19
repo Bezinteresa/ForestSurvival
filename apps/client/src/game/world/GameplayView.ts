@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMP_STORAGE, TEST_MATERIAL_NODES, TRAINING_DUMMY, isTool, type ToolId, type MaterialId } from '@forest-survival/shared';
+import { CAMP_STORAGE, TEST_MATERIAL_NODES, TEST_BERRY_BUSHES, TRAINING_DUMMY, isTool, type ToolId, type MaterialId, type FoodId } from '@forest-survival/shared';
 import type { GameFrame } from '../core/GameView';
 
 export class GameplayView {
@@ -7,9 +7,10 @@ export class GameplayView {
   private readonly firstPersonAxe = new THREE.Group();
   private readonly dummy = new THREE.Group();
   private readonly selection = new THREE.Box3Helper(new THREE.Box3(), 0xd9ed9b);
+  private readonly bushes = new Map<string, THREE.Group>();
   private readonly lootMeshes = new Map<string, THREE.Object3D>();
   private lootGeometry: THREE.BoxGeometry | undefined;
-  private readonly lootMaterials = new Map<MaterialId, THREE.MeshStandardMaterial>();
+  private readonly lootMaterials = new Map<MaterialId | FoodId, THREE.MeshStandardMaterial>();
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -48,6 +49,23 @@ export class GameplayView {
       this.trees.set(node.id, group);
       this.cameraObstacles.push(body);
     }
+    for (const bush of TEST_BERRY_BUSHES) {
+      const root = new THREE.Group();
+      root.position.set(bush.position.x, bush.position.y, bush.position.z);
+      const leaves = new THREE.Mesh(new THREE.SphereGeometry(0.45, 10, 7), new THREE.MeshStandardMaterial({ color: 0x385e35, roughness: 1 }));
+      leaves.position.y = 0.35;
+      leaves.scale.y = 0.65;
+      root.add(leaves);
+      const fruit = new THREE.Group();
+      for (let index = 0; index < bush.stock; index++) {
+        const berry = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 6), new THREE.MeshStandardMaterial({ color: 0xc34562, roughness: 0.8 }));
+        berry.position.set((index - 1) * 0.2, 0.57, 0.12);
+        fruit.add(berry);
+      }
+      root.add(fruit);
+      scene.add(root);
+      this.bushes.set(bush.id, fruit);
+    }
     const storage = CAMP_STORAGE;
     const crate = new THREE.Mesh(new THREE.BoxGeometry(storage.halfSize.x * 2, storage.halfSize.y * 2, storage.halfSize.z * 2), new THREE.MeshStandardMaterial({ color: 0x9f854f, roughness: 1 }));
     crate.position.set(storage.position.x, storage.position.y, storage.position.z);
@@ -81,6 +99,10 @@ export class GameplayView {
         trunk.material.emissive.setHex(gameplay.lastHit?.targetId === resource.id && frame.simulationTime - gameplay.lastHit.at < 0.14 ? 0x634224 : 0x000000);
       }
     }
+    for (const bush of gameplay.bushes) {
+      const fruit = this.bushes.get(bush.id);
+      fruit?.children.forEach((berry, index) => { berry.visible = index < bush.remaining; });
+    }
     this.dummy.visible = !gameplay.dummy.dead;
     if (gameplay.dummy.dead) this.removeObstacles(this.dummy);
 
@@ -99,7 +121,7 @@ export class GameplayView {
           this.lootGeometry ??= new THREE.BoxGeometry(0.55, 0.22, 0.28);
           let material = this.lootMaterials.get(item.itemId);
           if (!material) {
-            material = new THREE.MeshStandardMaterial({ color: { wood: 0xc69d60, stone: 0x9aa5aa, scrap: 0xb7785b }[item.itemId], roughness: 1 });
+            material = new THREE.MeshStandardMaterial({ color: { wood: 0xc69d60, stone: 0x9aa5aa, scrap: 0xb7785b, berries: 0xc34562 }[item.itemId], roughness: 1 });
             this.lootMaterials.set(item.itemId, material);
           }
           mesh = new THREE.Mesh(this.lootGeometry, material);
@@ -117,6 +139,9 @@ export class GameplayView {
     if (selected?.kind === 'tree' || selected?.kind === 'resource') {
       const resource = gameplay.resources.find((entry) => entry.id === selected.id);
       if (resource) this.selection.box.setFromCenterAndSize(new THREE.Vector3(resource.position.x, resource.trunkHeight / 2, resource.position.z), new THREE.Vector3(resource.radius * 2 + 0.1, resource.trunkHeight, resource.radius * 2 + 0.1));
+    } else if (selected?.kind === 'bush') {
+      const bush = gameplay.bushes.find((entry) => entry.id === selected.id);
+      if (bush) this.selection.box.setFromCenterAndSize(new THREE.Vector3(bush.position.x, bush.position.y + 0.4, bush.position.z), new THREE.Vector3(1, 0.8, 1));
     } else if (selected?.kind === 'storage') {
       this.selection.box.setFromCenterAndSize(new THREE.Vector3(CAMP_STORAGE.position.x, CAMP_STORAGE.position.y, CAMP_STORAGE.position.z), new THREE.Vector3(1.3, 1.1, 0.9));
     } else if (selected?.kind === 'dummy') {

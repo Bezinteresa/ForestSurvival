@@ -2,7 +2,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue';
 import type { InputAction, InputState } from '../game/input/InputState';
 
-const props = defineProps<{ input: InputState; enabled: boolean; cameraLocked: boolean; canInteract: boolean; interactionLabel: string }>();
+const props = defineProps<{ input: InputState; enabled: boolean; cameraLocked: boolean; canInteract: boolean; interactionLabel: string; primaryLabel: string }>();
 const emit = defineEmits<{ cameraLock: []; zoom: [steps: number] }>();
 const knob = ref({ x: 0, y: 0 });
 const sprinting = ref(false);
@@ -108,7 +108,7 @@ onBeforeUnmount(clear);
       <span :style="{ transform: 'translate(' + knob.x + 'px, ' + knob.y + 'px)' }" />
     </div>
     <div class="touch-actions" data-ui>
-      <button class="touch-button attack" @pointerdown.stop.prevent="actionDown('Primary', $event)" @pointerup.stop="actionEnd" @pointercancel.stop="cancelAll" @lostpointercapture="actionEnd" @click="keyboardAction('Primary', $event)">Удар</button>
+      <button class="touch-button attack" @pointerdown.stop.prevent="actionDown('Primary', $event)" @pointerup.stop="actionEnd" @pointercancel.stop="cancelAll" @lostpointercapture="actionEnd" @click="keyboardAction('Primary', $event)">{{ primaryLabel }}</button>
       <button class="touch-button" :disabled="!canInteract" @pointerdown.stop.prevent="actionDown('Interact', $event)" @pointerup.stop="actionEnd" @pointercancel.stop="cancelAll" @lostpointercapture="actionEnd" @click="keyboardAction('Interact', $event)">{{ interactionLabel }}</button>
       <button class="touch-button" :class="{ selected: sprinting }" :aria-pressed="sprinting" @pointerdown.prevent @click="toggleSprint">Бег</button>
       <button class="touch-button jump" @pointerdown.stop.prevent="actionDown('Jump', $event)" @pointerup.stop="actionEnd" @pointercancel.stop="cancelAll" @lostpointercapture="actionEnd" @click="keyboardAction('Jump', $event)">Прыжок</button>

@@ -27,6 +27,8 @@ export class AttackController {
     return strike;
   }
 
+  cancel(): void { this.current = undefined; }
+
   getYaw(now: number): number | undefined { return this.isBusy(now) ? this.current?.yaw : undefined; }
 
   getSnapshot(now: number) {

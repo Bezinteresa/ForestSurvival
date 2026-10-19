@@ -1,7 +1,9 @@
 import type { GameplaySnapshot } from './gameplay';
+import type { VitalsSnapshot } from './survival';
 export * from './gameplay';
 export * from './items';
 export * from './resources';
+export * from './survival';
 
 export type EntityId = string;
 
@@ -11,7 +13,7 @@ export interface Vector3Data {
   readonly z: number;
 }
 
-export type SessionStatus = 'ready' | 'running' | 'paused' | 'stopped';
+export type SessionStatus = 'ready' | 'running' | 'paused' | 'ended' | 'stopped';
 
 export interface PlayerSnapshot {
   readonly id: EntityId;
@@ -38,6 +40,7 @@ export interface SessionSnapshot {
   readonly simulationTime: number;
   readonly player: PlayerSnapshot;
   readonly gameplay: GameplaySnapshot;
+  readonly vitals: VitalsSnapshot;
 }
 
 export type SessionCommand = { readonly requestId: string } & (
@@ -48,6 +51,8 @@ export type SessionCommand = { readonly requestId: string } & (
   | { readonly type: 'drop-item'; readonly slot: number; readonly yaw: number }
   | { readonly type: 'transfer-item'; readonly direction: 'deposit' | 'withdraw'; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'debug-upgrade'; readonly target: 'tool' | 'backpack'; readonly slot: number; readonly level: 2 }
+  | { readonly type: 'consume-item'; readonly slot: number; readonly expectedItemId: string }
+  | { readonly type: 'gather'; readonly targetId: string }
   | { readonly type: 'pickup'; readonly targetId: string }
   | { readonly type: 'interact' }
 );
@@ -55,7 +60,7 @@ export type SessionCommand = { readonly requestId: string } & (
 export interface CommandResult {
   readonly accepted: boolean;
   readonly duplicate?: boolean;
-  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale';
+  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale' | 'satiated' | 'dead';
 }
 
 export const SIMULATION_CONFIG = {

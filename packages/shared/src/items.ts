@@ -1,6 +1,7 @@
 export type ToolId = 'axe' | 'pickaxe';
 export type MaterialId = 'wood' | 'stone' | 'scrap';
-export type ItemId = ToolId | MaterialId;
+export type FoodId = 'berries';
+export type ItemId = ToolId | MaterialId | FoodId;
 export type UpgradeLevel = 1 | 2;
 
 export const ITEM_DEFINITIONS = {
@@ -9,9 +10,11 @@ export const ITEM_DEFINITIONS = {
   wood: { label: 'Древесина', stackLimit: 3 },
   stone: { label: 'Камень', stackLimit: 3 },
   scrap: { label: 'Металлолом', stackLimit: 3 },
+  berries: { label: 'Ягоды', stackLimit: 5 },
 } as const satisfies Record<ItemId, { label: string; stackLimit: number }>;
 
 export function isTool(itemId: ItemId): itemId is ToolId { return itemId === 'axe' || itemId === 'pickaxe'; }
+export function isFood(itemId: ItemId): itemId is FoodId { return itemId === 'berries'; }
 export function itemLabel(stack: ItemStack): string { return ITEM_DEFINITIONS[stack.itemId].label + (isTool(stack.itemId) ? ' · ур. ' + (stack.level ?? 1) : ''); }
 
 export interface ItemStack {

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
-import { ITEM_DEFINITIONS, isTool, itemLabel, type GameplaySnapshot, type InventorySnapshot } from '@forest-survival/shared';
+import { ITEM_DEFINITIONS, isTool, isFood, itemLabel, type GameplaySnapshot, type InventorySnapshot } from '@forest-survival/shared';
 
 const props = defineProps<{ inventory: InventorySnapshot; storage: GameplaySnapshot['storage']; debugTools: boolean; note: string }>();
-const emit = defineEmits<{ close: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
+const emit = defineEmits<{ close: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; consumeItem: [slot: number]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
 const dialog = useTemplateRef<HTMLDialogElement>('dialog');
 const selected = ref(props.inventory.activeSlot);
 const selectedStorage = ref(0);
@@ -37,6 +37,7 @@ onBeforeUnmount(() => dialog.value?.close());
     <div class="inventory-actions">
       <template v-if="movingFrom === null">
         <button class="button primary" @click="emit('selectSlot', selected)">В руку</button>
+        <button v-if="stack && isFood(stack.itemId)" class="button primary" @click="emit('consumeItem', selected)">Съесть одну</button>
         <button class="button secondary" :disabled="!stack" @click="movingFrom = selected">Перенести</button>
         <button class="button secondary" :disabled="!stack" @click="emit('dropItem', selected)">Выбросить стек</button>
         <button class="button secondary" :disabled="!stack || !storage.inReach" @click="emit('transferItem', 'deposit', selected)">В склад</button>

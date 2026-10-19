@@ -66,6 +66,13 @@ export class Game {
           if (frame.pressed.has('Drop')) session.sendCommand({ type: 'drop-item', slot: session.getSnapshot().gameplay.inventory.activeSlot, yaw, requestId: nextRequest() });
         }
         session.step(dt, { moveX: this.input.enabled ? frame.move.x : 0, moveY: this.input.enabled ? frame.move.y : 0, sprint: this.input.enabled && frame.sprint, jump: this.input.enabled && frame.pressed.has('Jump'), cameraYaw: this.camera.cameraYaw, faceCamera: this.camera.facesCamera });
+        if (session.getSnapshot().status === 'ended') {
+          this.loop.stop();
+          this.closeInventory();
+          this.input.setContext('ui');
+          this.browserInput?.suspend();
+          this.render(1);
+        }
       },
       (alpha) => this.render(alpha),
       (error) => { this.input.setContext('ui'); this.browserInput?.suspend(); session.pause(); onError(error); },
@@ -74,7 +81,7 @@ export class Game {
   }
 
   start(): void {
-    if (this.destroyed) return;
+    if (this.destroyed || this.session.getSnapshot().status === 'ended') return;
     if (this.session.getSnapshot().status !== 'running') this.input.setContext('gameplay');
     this.session.start();
     this.loop.start();
@@ -83,7 +90,7 @@ export class Game {
   }
 
   pause(): void {
-    if (this.destroyed) return;
+    if (this.destroyed || this.session.getSnapshot().status === 'ended') return;
     this.loop.stop();
     this.closeInventory();
     this.input.setContext('ui');

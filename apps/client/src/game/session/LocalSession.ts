@@ -1,5 +1,6 @@
-import { NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, TEST_MATERIAL_NODES, TEST_WORLD, type PlayerControlFrame, type CommandResult, type PlayerSnapshot, type SessionCommand, type SessionSnapshot, type SessionStatus, type Vector3Data } from '@forest-survival/shared';
+import { NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, isFood, TEST_MATERIAL_NODES, TEST_WORLD, type PlayerControlFrame, type CommandResult, type PlayerSnapshot, type SessionCommand, type SessionSnapshot, type SessionStatus, type Vector3Data } from '@forest-survival/shared';
 import { buildPlayerMotion } from '../player/PlayerMotor';
+import { PlayerVitals } from '../player/PlayerVitals';
 import { GameplayWorld } from '../world/GameplayWorld';
 import { PhysicsWorld, interpolatePosition, type DebugGeometry } from '../world/PhysicsWorld';
 import type { GameSession } from './GameSession';
@@ -13,6 +14,7 @@ export class LocalSession implements GameSession {
   private readonly listeners = new Set<(snapshot: SessionSnapshot) => void>();
   private readonly handledRequests = new Map<string, CommandResult>();
   private readonly gameplay: GameplayWorld;
+  private readonly vitals = new PlayerVitals();
   private viewYaw = Math.PI;
   private destroyed = false;
 
@@ -28,7 +30,7 @@ export class LocalSession implements GameSession {
   }
 
   start(): void {
-    if (this.destroyed || this.status === 'running') return;
+    if (this.destroyed || this.status === 'running' || this.status === 'ended') return;
     this.status = 'running';
     this.publish();
   }
@@ -47,6 +49,13 @@ export class LocalSession implements GameSession {
     this.currentPlayer = { ...this.physics.getPlayerSnapshot(), yaw: this.gameplay.getAttackYaw(this.simulationTime) ?? motion.yaw };
     this.viewYaw = Math.atan2(Math.sin(input.cameraYaw), -Math.cos(input.cameraYaw));
     this.simulationTime += dt;
+    this.vitals.step(dt, this.simulationTime);
+    if (this.vitals.dead) {
+      this.gameplay.end();
+      this.status = 'ended';
+      this.publish();
+      return;
+    }
     this.gameplay.update(this.simulationTime, this.currentPlayer, this.viewYaw);
     this.sinceSnapshot += dt;
     if (this.sinceSnapshot + 1e-10 >= SIMULATION_CONFIG.snapshotInterval) {
@@ -63,6 +72,7 @@ export class LocalSession implements GameSession {
       simulationTime: this.simulationTime,
       player: { ...this.currentPlayer, position: { ...this.currentPlayer.position } },
       gameplay: this.gameplay.getSnapshot(this.simulationTime),
+      vitals: this.vitals.snapshot(),
     };
   }
 
@@ -77,6 +87,7 @@ export class LocalSession implements GameSession {
     if (this.destroyed || typeof command.requestId !== 'string' || !command.requestId || command.requestId.length > 80) return { accepted: false, reason: 'invalid' };
     const previous = this.handledRequests.get(command.requestId);
     if (previous) return { ...previous, duplicate: true };
+    if (this.status === 'ended') return { accepted: false, reason: 'dead' };
     let result: CommandResult;
     if (command.type !== 'reset-player' && this.status !== 'running') result = { accepted: false, reason: 'paused' };
     else switch (command.type) {
@@ -87,10 +98,20 @@ export class LocalSession implements GameSession {
         this.gameplay.update(this.simulationTime, this.currentPlayer, this.viewYaw);
         result = { accepted: true };
         break;
-      case 'use-item':
-        result = Number.isFinite(command.yaw) ? this.gameplay.useItem(command.requestId, command.yaw, this.simulationTime) : { accepted: false, reason: 'invalid' };
-        if (result.accepted) this.currentPlayer = { ...this.currentPlayer, yaw: command.yaw };
+      case 'use-item': {
+        if (!Number.isFinite(command.yaw)) { result = { accepted: false, reason: 'invalid' }; break; }
+        const selected = this.gameplay.getSelectedItem();
+        if (selected && isFood(selected.itemId)) {
+          const slot = this.gameplay.getSnapshot(this.simulationTime).inventory.activeSlot;
+          result = this.gameplay.consumeFood(slot, selected.id, this.vitals, this.simulationTime);
+        } else {
+          result = this.gameplay.useItem(command.requestId, command.yaw, this.simulationTime);
+          if (result.accepted) this.currentPlayer = { ...this.currentPlayer, yaw: command.yaw };
+        }
         break;
+      }
+      case 'consume-item': result = this.gameplay.consumeFood(command.slot, command.expectedItemId, this.vitals, this.simulationTime); break;
+      case 'gather': result = this.gameplay.gather(command.targetId, this.currentPlayer, this.simulationTime); break;
       case 'select-slot': result = this.gameplay.selectSlot(command.slot, this.simulationTime); break;
       case 'move-item': result = this.gameplay.moveItem(command.from, command.to, this.simulationTime); break;
       case 'drop-item': result = this.gameplay.drop(command.slot, this.currentPlayer, command.yaw, this.simulationTime); break;
