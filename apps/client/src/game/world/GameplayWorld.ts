@@ -6,6 +6,8 @@ import { Inventory } from '../items/Inventory';
 import { CampStorage } from '../items/CampStorage';
 import { PlayerVitals } from '../player/PlayerVitals';
 import { ForagingWorld } from './ForagingWorld';
+import { CAMPFIRE_CONFIG } from '@forest-survival/shared';
+import { Campfire } from './Campfire';
 
 interface ResourceDefinition extends TreeDefinition { readonly kind: ResourceKind }
 
@@ -16,6 +18,9 @@ export interface GameplayQueries extends VisibilityQueries {
 export class GameplayWorld {
   private readonly attacks = new AttackController();
   private readonly storage = new CampStorage();
+  private readonly campfire = new Campfire();
+  private campfireInReach = false;
+  private lastPlayer: PlayerSnapshot = { id: PLAYER_CONFIG.id, position: { ...PLAYER_CONFIG.spawn }, grounded: false, yaw: Math.PI };
   private readonly foraging: ForagingWorld;
   private storageInReach = false;
   private attackTool: { tool: ToolId; damage: number } | undefined;
@@ -37,10 +42,24 @@ export class GameplayWorld {
 
   getSelectedItem() { return this.inventory.getStack(this.inventory.selectedSlot); }
 
+  step(dt: number): void { this.campfire.step(dt); }
+
+  fuelFire(slot: number, expectedItemId: string, player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    const result = this.campfire.addWood(this.inventory, slot, expectedItemId, player, this.visibility);
+    const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = {
+      'out-of-range': 'Подойдите к костру.', blocked: 'Костёр закрыт препятствием.', stale: 'Слот изменился. Выберите древесину заново.',
+      'wrong-fuel': 'Выберите древесину в рюкзаке.', 'fire-full': 'Нет места для всей порции топлива. Древесина сохранена.',
+    };
+    this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted ? 'Костёр: +' + CAMPFIRE_CONFIG.secondsPerWood + ' с · −1 древесина' : messages[result.reason!] ?? 'Не удалось добавить топливо.', at: now };
+    return result;
+  }
+
   end(): void {
     this.attacks.cancel();
     this.interaction = null;
     this.storageInReach = false;
+    this.campfireInReach = false;
   }
 
   consumeFood(slot: number, expectedItemId: string, vitals: PlayerVitals, now: number): CommandResult {
@@ -158,6 +177,10 @@ export class GameplayWorld {
 
   interact(player: PlayerSnapshot, now: number, viewYaw: number): CommandResult {
     this.updateInteraction(player, viewYaw);
+    if (this.interaction?.kind === 'campfire') {
+      const stack = this.getSelectedItem();
+      return stack ? this.fuelFire(this.inventory.selectedSlot, stack.id, player, now) : this.reject('wrong-fuel', 'Выберите древесину в рюкзаке.', now);
+    }
     if (this.interaction?.kind === 'bush') return this.gather(this.interaction.id, player, now);
     if (this.interaction?.kind === 'storage') return { accepted: this.storage.canAccess(player, this.visibility) };
     return this.interaction?.kind === 'pickup' ? this.pickup(this.interaction.id, player, now) : { accepted: false, reason: 'missing' };
@@ -172,6 +195,7 @@ export class GameplayWorld {
       equippedItem: this.inventory.equippedItem,
       bag: { wood: this.inventory.count('wood'), capacity: this.inventory.capacityFor('wood') },
       bushes: this.foraging.snapshot(),
+      campfire: this.campfire.snapshot(this.lastPlayer, this.campfireInReach),
       resources: this.resources.map(({ definition, receiver }) => ({ id: definition.id, kind: definition.kind, requiredTool: RESOURCE_DEFINITIONS[definition.kind].tool, position: { ...definition.position }, radius: definition.radius, trunkHeight: definition.trunkHeight, health: receiver.currentHealth, maxHealth: receiver.maxHealth, exhausted: receiver.exhausted })),
       loot: [...this.loot.values()].map((item) => ({ ...item, position: { ...item.position } })),
       dummy,
@@ -194,6 +218,8 @@ export class GameplayWorld {
 
   private updateInteraction(player: PlayerSnapshot, yaw: number): void {
     const origin = this.getOrigin(player);
+    this.lastPlayer = { ...player, position: { ...player.position } };
+    this.campfireInReach = this.campfire.access(player, this.visibility).accepted;
     this.storageInReach = this.storage.canAccess(player, this.visibility);
     const item = selectTarget([...this.loot.values()].map((loot) => ({ id: loot.id, position: loot.position, radius: 0 })), origin, yaw, RESOURCE_CONFIG.pickupRange, Math.PI * 0.48, AXE_CONFIG.maxHeightDifference, this.visibility);
     if (item) {
@@ -206,6 +232,12 @@ export class GameplayWorld {
     const storage = CAMP_STORAGE;
     if (this.storageInReach && selectTarget([{ id: storage.id, position: storage.position, radius: 0 }], origin, yaw, storage.range, AXE_CONFIG.halfAngle, 1.5, this.visibility)) {
       this.interaction = { id: storage.id, kind: 'storage', label: 'Открыть склад лагеря' };
+      return;
+    }
+    const fire = CAMPFIRE_CONFIG;
+    if (this.campfireInReach && selectTarget([{ id: fire.id, position: { ...fire.position, y: fire.position.y + fire.targetHeight }, radius: 0 }], origin, yaw, fire.range, AXE_CONFIG.halfAngle, 1.5, this.visibility)) {
+      const snapshot = this.campfire.snapshot(player, true);
+      this.interaction = { id: fire.id, kind: 'campfire', label: snapshot.lit ? 'Костёр · ' + Math.ceil(snapshot.fuelSeconds) + ' с' : 'Костёр потух' };
       return;
     }
     const target = this.findStrikeTarget(player, yaw);

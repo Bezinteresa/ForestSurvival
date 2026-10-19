@@ -1,4 +1,5 @@
 import type { Collider, KinematicCharacterController, RigidBody, World } from '@dimforge/rapier3d-compat';
+import { CAMPFIRE_CONFIG } from '@forest-survival/shared';
 import { CAMP_STORAGE, INVENTORY_CONFIG, PLAYER_CONFIG, SIMULATION_CONFIG, TEST_WORLD, TEST_MATERIAL_NODES, TRAINING_DUMMY, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
 
 type Rapier = typeof import('@dimforge/rapier3d-compat')['default'];
@@ -59,6 +60,8 @@ export class PhysicsWorld {
     }
     const storage = CAMP_STORAGE;
     this.entityColliders.set(storage.id, world.createCollider(rapier.ColliderDesc.cuboid(storage.halfSize.x, storage.halfSize.y, storage.halfSize.z).setTranslation(storage.position.x, storage.position.y, storage.position.z)));
+    const fire = CAMPFIRE_CONFIG;
+    this.entityColliders.set(fire.id, world.createCollider(rapier.ColliderDesc.cylinder(fire.baseHeight / 2, fire.radius).setTranslation(fire.position.x, fire.position.y + fire.baseHeight / 2, fire.position.z)));
     const spawn = PLAYER_CONFIG.spawn;
     this.player = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y, spawn.z));
     this.playerCollider = world.createCollider(rapier.ColliderDesc.capsule(PLAYER_CONFIG.halfHeight, PLAYER_CONFIG.radius), this.player);

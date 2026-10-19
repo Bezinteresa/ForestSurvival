@@ -40,6 +40,8 @@ const materials = computed(() => {
   return totals;
 });
 const ended = computed(() => snapshot.value?.status === 'ended');
+const interactionLabel = computed(() => { const kind = gameplay.value?.interaction?.kind; return kind === 'storage' ? 'Склад' : kind === 'bush' ? 'Собрать' : kind === 'campfire' ? 'Топливо' : 'Взять'; });
+const canInteract = computed(() => ['pickup', 'storage', 'bush', 'campfire'].includes(gameplay.value?.interaction?.kind ?? ''));
 const foodInHand = computed(() => { const inventory = gameplay.value?.inventory; const stack = inventory?.slots[inventory.activeSlot]; return !!stack && isFood(stack.itemId); });
 const canPlay = computed(() => active.value && !paused.value && !ended.value);
 const paused = computed(() => snapshot.value?.status === 'paused');
@@ -123,11 +125,13 @@ function reportInventory(result?: CommandResult): void {
     busy: 'Дождитесь завершения удара.',
     'inventory-full': 'Нет места для всего стека.',
     blocked: 'Нет места для выброса. Встаньте на землю и отойдите от препятствия.',
-    'out-of-range': 'Подойдите к складу.',
+    'out-of-range': 'Подойдите ближе к месту взаимодействия.',
     stale: 'Слот изменился. Выберите предмет заново.',
     forbidden: 'Режим разработки отключён.',
     satiated: 'Вы уже сыты. Еда сохранена.',
     dead: 'Забег завершён.',
+    'fire-full': 'Нет места для всей порции топлива. Древесина сохранена.',
+    'wrong-fuel': 'Для костра нужна древесина.',
   };
   inventoryNote.value = result?.accepted ? 'Готово.' : result?.reason ? messages[result.reason] ?? 'Операция недоступна.' : 'Операция недоступна.';
 }
@@ -147,6 +151,14 @@ function transferItem(direction: 'deposit' | 'withdraw', slot: number): void {
 function consumeItem(slot: number): void {
   const stack = gameplay.value?.inventory.slots[slot];
   if (stack) reportInventory(game?.sendCommand({ type: 'consume-item', slot, expectedItemId: stack.id, requestId: 'ui-' + (++requestNumber) }));
+}
+function fuelFire(slot: number): void {
+  const stack = gameplay.value?.inventory.slots[slot];
+  if (!stack) return;
+  const result = game?.sendCommand({ type: 'fuel-fire', slot, expectedItemId: stack.id, requestId: 'ui-' + (++requestNumber) });
+  reportInventory(result);
+  if (result?.reason === 'blocked') inventoryNote.value = 'Костёр закрыт препятствием.';
+  if (result?.reason === 'out-of-range') inventoryNote.value = 'Подойдите к костру.';
 }
 function debugUpgrade(target: 'tool' | 'backpack', slot: number): void { reportInventory(game?.sendCommand({ type: 'debug-upgrade', target, slot, level: 2, requestId: 'ui-' + (++requestNumber) })); }
 
@@ -175,7 +187,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
       <p class="eyebrow">ПЕРВЫЙ ШАГ В ЛЕС</p>
       <h1 id="welcome-title">Всё начинается<br />с поляны.</h1>
       <p class="intro">Основа будущего выживания: персонаж, деревья и препятствия на небольшой тестовой площадке.</p>
-      <p class="scope-note">Подойдите к дереву, нанесите несколько ударов топором и подберите древесину. Собирайте ягоды с кустов и ешьте, чтобы не потерять здоровье от голода. На телефоне доступны стик и экранные кнопки.</p>
+      <p class="scope-note">Подойдите к дереву, нанесите несколько ударов топором и подберите древесину. Собирайте ягоды, утоляйте голод и поддерживайте костёр древесиной. На телефоне доступны стик и экранные кнопки.</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <button class="button primary" :disabled="loading" @click="start">{{ loading ? 'Подготавливаем поляну…' : error ? 'Попробовать снова' : 'Открыть поляну' }}<span aria-hidden="true">↗</span></button>
       <p class="footnote">Локальная сессия · без подключения к серверу</p>
@@ -188,22 +200,22 @@ onBeforeUnmount(() => { disposed = true; stop(); });
     <div v-if="canPlay && !inventoryOpen && gameplay?.interaction" class="target-hint">
       <strong>{{ gameplay.interaction.label }}</strong>
       <template v-if="gameplay.interaction.health !== undefined"><span>{{ gameplay.interaction.health }} / {{ gameplay.interaction.maxHealth }}</span><progress :value="gameplay.interaction.health" :max="gameplay.interaction.maxHealth" /></template>
-      <span>{{ gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : gameplay.interaction.kind === 'bush' ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
+      <span>{{ gameplay.interaction.kind === 'campfire' ? 'E / «Топливо» · 1 древесина' : gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : gameplay.interaction.kind === 'bush' ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
     </div>
     <p v-if="canPlay && feedback" class="game-feedback" role="status">{{ feedback }}</p>
     <div v-if="canPlay && !inventoryOpen && gameplay" class="equipment-bar" data-ui>
       <button v-for="(item, slot) in gameplay.inventory.slots.slice(0, 5)" :key="slot" :class="{ selected: gameplay.inventory.activeSlot === slot }" :aria-pressed="gameplay.inventory.activeSlot === slot" @pointerdown.prevent @click="selectSlot(slot)"><span>{{ slot + 1 }}</span><strong>{{ item ? itemLabel(item) : 'Пусто' }}</strong><span v-if="item">×{{ item.amount }}</span></button>
       <progress v-if="gameplay.attack.phase !== 'idle'" :value="gameplay.attack.progress" max="1" aria-label="Восстановление после удара" />
     </div>
-    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="gameplay?.interaction?.kind === 'pickup' || gameplay?.interaction?.kind === 'storage' || gameplay?.interaction?.kind === 'bush'" :interaction-label="gameplay?.interaction?.kind === 'storage' ? 'Склад' : gameplay?.interaction?.kind === 'bush' ? 'Собрать' : 'Взять'" :primary-label="foodInHand ? 'Есть' : 'Удар'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
-    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
+    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="canInteract" :interaction-label="interactionLabel" :primary-label="foodInHand ? 'Есть' : 'Удар'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
+    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @fuel-fire="fuelFire" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
     <PlayerStatus v-if="canPlay && snapshot" :vitals="snapshot.vitals" />
     <RunResult v-if="ended && snapshot" :vitals="snapshot.vitals" :elapsed="elapsed" @restart="start" @leave="stop" />
     <div v-if="active && paused" class="pause-backdrop" />
     <section v-if="active && paused" class="scene-panel" aria-label="Меню паузы" data-ui>
       <p class="eyebrow">ТЕСТОВАЯ ПОЛЯНА</p>
       <h1>Лесная площадка</h1>
-      <p class="panel-description">WASD — движение · Space — прыжок · Ctrl — бег · Shift — фиксация камеры · ПКМ — обзор · колесо — приближение. ЛКМ — удар, E — подбор, 1–5 — слот, Tab — рюкзак, G — выбросить стек.</p>
+      <p class="panel-description">WASD — движение · Space — прыжок · Ctrl — бег · Shift — фиксация камеры · ПКМ — обзор · колесо — приближение. ЛКМ — предмет, E — подбор/сбор/топливо, 1–5 — слот, Tab — рюкзак, G — выбросить стек.</p>
       <div class="readings">
         <div><span>Время сцены</span><strong>{{ elapsed }}</strong></div>
         <div><span>Персонаж</span><strong>{{ snapshot?.player.grounded ? 'На земле' : 'В воздухе' }}</strong></div>

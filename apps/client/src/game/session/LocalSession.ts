@@ -49,6 +49,7 @@ export class LocalSession implements GameSession {
     this.currentPlayer = { ...this.physics.getPlayerSnapshot(), yaw: this.gameplay.getAttackYaw(this.simulationTime) ?? motion.yaw };
     this.viewYaw = Math.atan2(Math.sin(input.cameraYaw), -Math.cos(input.cameraYaw));
     this.simulationTime += dt;
+    this.gameplay.step(dt);
     this.vitals.step(dt, this.simulationTime);
     if (this.vitals.dead) {
       this.gameplay.end();
@@ -112,6 +113,7 @@ export class LocalSession implements GameSession {
       }
       case 'consume-item': result = this.gameplay.consumeFood(command.slot, command.expectedItemId, this.vitals, this.simulationTime); break;
       case 'gather': result = this.gameplay.gather(command.targetId, this.currentPlayer, this.simulationTime); break;
+      case 'fuel-fire': result = this.gameplay.fuelFire(command.slot, command.expectedItemId, this.currentPlayer, this.simulationTime); break;
       case 'select-slot': result = this.gameplay.selectSlot(command.slot, this.simulationTime); break;
       case 'move-item': result = this.gameplay.moveItem(command.from, command.to, this.simulationTime); break;
       case 'drop-item': result = this.gameplay.drop(command.slot, this.currentPlayer, command.yaw, this.simulationTime); break;

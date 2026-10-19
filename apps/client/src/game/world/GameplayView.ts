@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import { CAMP_STORAGE, TEST_MATERIAL_NODES, TEST_BERRY_BUSHES, TRAINING_DUMMY, isTool, type ToolId, type MaterialId, type FoodId } from '@forest-survival/shared';
 import type { GameFrame } from '../core/GameView';
+import { CAMPFIRE_CONFIG } from '@forest-survival/shared';
+import { CampfireView } from './CampfireView';
 
 export class GameplayView {
+  private readonly campfire: CampfireView;
   private readonly axe = new THREE.Group();
   private readonly firstPersonAxe = new THREE.Group();
   private readonly dummy = new THREE.Group();
@@ -19,6 +22,7 @@ export class GameplayView {
     private readonly trees: Map<string, THREE.Group>,
     private readonly cameraObstacles: THREE.Object3D[],
   ) {
+    this.campfire = new CampfireView(scene, cameraObstacles);
     this.buildAxe(this.axe);
     this.axe.position.set(0.52, -0.05, 0.15);
     player.add(this.axe);
@@ -135,6 +139,7 @@ export class GameplayView {
     }
 
     const selected = gameplay.interaction;
+    this.campfire.update(gameplay.campfire);
     this.selection.visible = !!selected;
     if (selected?.kind === 'tree' || selected?.kind === 'resource') {
       const resource = gameplay.resources.find((entry) => entry.id === selected.id);
@@ -142,6 +147,9 @@ export class GameplayView {
     } else if (selected?.kind === 'bush') {
       const bush = gameplay.bushes.find((entry) => entry.id === selected.id);
       if (bush) this.selection.box.setFromCenterAndSize(new THREE.Vector3(bush.position.x, bush.position.y + 0.4, bush.position.z), new THREE.Vector3(1, 0.8, 1));
+    } else if (selected?.kind === 'campfire') {
+      const fire = CAMPFIRE_CONFIG;
+      this.selection.box.setFromCenterAndSize(new THREE.Vector3(fire.position.x, fire.position.y + 0.6, fire.position.z), new THREE.Vector3(fire.radius * 2, 1.2, fire.radius * 2));
     } else if (selected?.kind === 'storage') {
       this.selection.box.setFromCenterAndSize(new THREE.Vector3(CAMP_STORAGE.position.x, CAMP_STORAGE.position.y, CAMP_STORAGE.position.z), new THREE.Vector3(1.3, 1.1, 0.9));
     } else if (selected?.kind === 'dummy') {

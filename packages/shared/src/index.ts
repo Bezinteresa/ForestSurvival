@@ -4,6 +4,7 @@ export * from './gameplay';
 export * from './items';
 export * from './resources';
 export * from './survival';
+export * from './campfire';
 
 export type EntityId = string;
 
@@ -53,6 +54,7 @@ export type SessionCommand = { readonly requestId: string } & (
   | { readonly type: 'debug-upgrade'; readonly target: 'tool' | 'backpack'; readonly slot: number; readonly level: 2 }
   | { readonly type: 'consume-item'; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'gather'; readonly targetId: string }
+  | { readonly type: 'fuel-fire'; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'pickup'; readonly targetId: string }
   | { readonly type: 'interact' }
 );
@@ -60,7 +62,7 @@ export type SessionCommand = { readonly requestId: string } & (
 export interface CommandResult {
   readonly accepted: boolean;
   readonly duplicate?: boolean;
-  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale' | 'satiated' | 'dead';
+  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale' | 'satiated' | 'dead' | 'fire-full' | 'wrong-fuel';
 }
 
 export const SIMULATION_CONFIG = {

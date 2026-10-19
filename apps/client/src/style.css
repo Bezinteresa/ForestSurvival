@@ -138,6 +138,7 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 .resource-count > span { display: block; margin-top: 6px; color: #bdcbb4; }
 .storage-section { margin-top: 24px; padding-top: 16px; border-top: 1px solid #ffffff30; }
 .storage-section h3 { font-size: 15px; margin: 0; }
+.campfire-fuel { width: 100%; height: 8px; display: block; accent-color: #e6c677; }
 .debug-upgrades { margin-top: 20px; color: #e3bf83; font-size: 12px; }
 .debug-upgrades summary { cursor: pointer; margin-bottom: 12px; }
 
