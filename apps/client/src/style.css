@@ -123,9 +123,10 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 
 .equipment-bar button { width: 62px; min-height: 62px; padding: 6px 3px; }
 .equipment-bar button > span, .equipment-bar button > strong { display: block; margin: 2px 0; font-size: 10px; }
-.inventory-panel { width: min(620px, calc(100% - 24px)); max-height: calc(100svh - 24px); overflow: auto; padding: 22px; border: 1px solid #71816a; border-radius: 16px; color: #eff4e9; background: #14231b; }
+.inventory-panel { --panel-pad: 22px; width: min(620px, calc(100% - 24px)); max-height: calc(100svh - 24px); overflow: auto; padding: var(--panel-pad); border: 1px solid #71816a; border-radius: 16px; color: #eff4e9; background: #14231b; }
 .inventory-panel::backdrop { background: #08130dc9; }
-.inventory-heading { position: sticky; top: 0; z-index: 2; padding-block: 10px; background: #14231b; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* The sticky heading covers the panel padding too, otherwise scrolled text shows above it. */
+.inventory-heading { position: sticky; top: calc(-1 * var(--panel-pad)); z-index: 2; margin-top: calc(-1 * var(--panel-pad)); padding: calc(var(--panel-pad) + 6px) 0 10px; background: #14231b; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 #workbench-title { scroll-margin-block-start: 80px; }
 .inventory-heading h2 { margin: 0; font-size: 24px; }
 .inventory-help { color: #bbc9b3; font-size: 12px; line-height: 1.6; }
@@ -138,7 +139,9 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 .inventory-status { min-height: 38px; font-size: 13px; color: #e7d5a3; line-height: 1.5; }
 .inventory-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .inventory-actions button:disabled { cursor: default; }
-@media (max-width: 600px) { .inventory-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } .inventory-panel { padding: 16px; } .header-actions { gap: 6px; } .header-actions .mode-badge { display: none; } .header-actions .button { padding: 10px; min-height: 44px; } }
+/* A disabled primary action (upgrade, craft without materials) must not look like the enabled light-green button. */
+.inventory-panel .button.primary:disabled { opacity: 1; background: #ffffff14; border-color: #ffffff2e; color: #9fae98; }
+@media (max-width: 600px) { .inventory-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } .inventory-panel { --panel-pad: 16px; } .header-actions { gap: 6px; } .header-actions .mode-badge { display: none; } .header-actions .button { padding: 10px; min-height: 44px; } }
 @media (any-pointer: coarse) and (max-height: 560px) { .touch-actions { bottom: 92px; } .touch-controls .touch-look { bottom: 100px; top: 75px; } .touch-camera { top: 66px; } }
 
 .resource-count > span { display: block; margin-top: 6px; color: #bdcbb4; }
@@ -164,4 +167,6 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 .run-result > p { font-size: 13px; line-height: 1.6; }
 .run-result .actions { margin-top: 24px; }
 @media (any-pointer: coarse) { .player-status { left: 24px; bottom: calc(max(20px, env(safe-area-inset-bottom)) + 212px); width: 166px; padding: 8px; gap: 8px; } .player-status label { font-size: 10px; } .player-status strong { font-size: 11px; } }
-@media (any-pointer: coarse) and (max-height: 560px) { .player-status { bottom: 140px; } .player-status strong { margin-top: 1px; } .player-status progress { margin-top: 3px; } }
+/* Landscape phones have no room for both counters and vitals on the left; the hotbar already shows stack amounts. */
+@media (any-pointer: coarse) and (max-height: 560px) { .resource-count { display: none; } .game-feedback { top: 116px; } }
+@media (any-pointer: coarse) and (max-height: 560px) { .player-status { bottom: 140px; width: 230px; } .player-status strong { margin-top: 1px; } .player-status progress { margin-top: 3px; } }

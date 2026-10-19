@@ -31,7 +31,7 @@ function upgrade(): void { if (props.workbench.level) emit('upgrade', props.work
       <ul class="campfire-price"><li v-for="entry in price(recipe.cost)" :key="entry.label" :class="{ missing: entry.owned < entry.required }">{{ entry.label }}: {{ entry.owned }} / {{ entry.required }}</li></ul>
       <p v-if="recipe.minLevel > workbench.level" class="inventory-help">Нужен верстак ур. {{ recipe.minLevel }}.</p>
       <p v-else-if="recipe.kind === 'backpack' && inventory.level >= recipe.level" class="inventory-help">Рюкзак уже улучшен.</p>
-      <button class="button secondary" :disabled="moving || !workbench.inReach || !workbench.built || recipe.minLevel > workbench.level || !affordable(recipe.cost) || (recipe.kind === 'backpack' && inventory.level >= recipe.level)" @click="emit('craft', recipe.id)">{{ recipe.kind === 'item' ? 'Изготовить · ' + recipe.label : 'Расширить рюкзак' }}</button>
+      <button class="button primary" :disabled="moving || !workbench.inReach || !workbench.built || recipe.minLevel > workbench.level || !affordable(recipe.cost) || (recipe.kind === 'backpack' && inventory.level >= recipe.level)" @click="emit('craft', recipe.id)">{{ recipe.kind === 'item' ? 'Изготовить · ' + recipe.label : 'Расширить рюкзак' }}</button>
     </article>
   </section>
 </template>
