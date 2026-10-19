@@ -86,6 +86,7 @@ VITE_ENABLE_DEBUG_TOOLS=true npm run dev
 | --- | --- |
 | [ROADMAP](docs/ROADMAP.md) | 90 основных задач и уточняющие подзадачи с критериями |
 | [AI_GAME_SPEC](docs/AI_GAME_SPEC.md) | Целевое задание для ИИ: 99 дней, дети, множитель, классы и лагерь |
+| [COMPANION_AI](docs/COMPANION_AI.md) | План напарников: новичок/мидл/профи, приказы, команда и будущий вызов |
 | [GAME_DESIGN](docs/GAME_DESIGN.md) | Игровой цикл, ресурсы, враги и прокачка |
 | [CONTROLS](docs/CONTROLS.md) | Управление на ПК и телефоне |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | Разделение модулей и сетевые полномочия |
