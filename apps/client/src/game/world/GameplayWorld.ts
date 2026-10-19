@@ -8,7 +8,7 @@ import { PlayerVitals } from '../player/PlayerVitals';
 import { ForagingWorld } from './ForagingWorld';
 import { CAMPFIRE_CONFIG, FUEL_DEFINITIONS, isFuel, type CampfireLevel } from '@forest-survival/shared';
 import { Campfire } from './Campfire';
-import { WORKBENCH_CONFIG } from '@forest-survival/shared';
+import { WORKBENCH_CONFIG, type WorkbenchLevel } from '@forest-survival/shared';
 import { Workbench, type WorkbenchPlacement } from './Workbench';
 
 interface ResourceDefinition extends TreeDefinition { readonly kind: ResourceKind }
@@ -98,7 +98,13 @@ export class GameplayWorld {
 
   craftItem(recipeId: string, player: PlayerSnapshot, now: number): CommandResult {
     if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
-    return this.workbenchFeedback(this.workbench.craft(recipeId, this.inventory, player, this.visibility), now, 'Предмет изготовлен и помещён в рюкзак.');
+    return this.workbenchFeedback(this.workbench.craft(recipeId, this.inventory, player, this.visibility), now, recipeId === 'expanded-backpack' ? 'Рюкзак расширен.' : 'Предмет изготовлен и помещён в рюкзак.');
+  }
+
+  upgradeWorkbench(expectedLevel: WorkbenchLevel, player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    const result = this.workbench.upgrade(expectedLevel, this.inventory, player, this.visibility);
+    return this.workbenchFeedback(result, now, 'Верстак улучшен до уровня ' + this.workbench.snapshot(this.workbenchInReach).level + '.');
   }
 
   private workbenchFeedback(result: CommandResult, now: number, success: string): CommandResult {
@@ -106,6 +112,7 @@ export class GameplayWorld {
       'out-of-range': 'Подойдите к площадке верстака.', blocked: 'Освободите площадку и путь к верстаку.',
       'insufficient-materials': 'Не хватает материалов в рюкзаке.', 'inventory-full': 'Нет места для результата. Материалы сохранены.',
       'already-built': 'Верстак уже построен.', 'station-required': 'Сначала постройте верстак.', 'station-level': 'Нужен верстак более высокого уровня.',
+      stale: 'Уровень верстака изменился. Проверьте следующее улучшение.', 'max-level': 'Максимальный уровень уже достигнут.',
     };
     this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted ? success : messages[result.reason!] ?? 'Рецепт недоступен.', at: now };
     return result;

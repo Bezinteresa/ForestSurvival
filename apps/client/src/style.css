@@ -125,7 +125,8 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 .equipment-bar button > span, .equipment-bar button > strong { display: block; margin: 2px 0; font-size: 10px; }
 .inventory-panel { width: min(620px, calc(100% - 24px)); max-height: calc(100svh - 24px); overflow: auto; padding: 22px; border: 1px solid #71816a; border-radius: 16px; color: #eff4e9; background: #14231b; }
 .inventory-panel::backdrop { background: #08130dc9; }
-.inventory-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.inventory-heading { position: sticky; top: 0; z-index: 2; padding-block: 10px; background: #14231b; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#workbench-title { scroll-margin-block-start: 80px; }
 .inventory-heading h2 { margin: 0; font-size: 24px; }
 .inventory-help { color: #bbc9b3; font-size: 12px; line-height: 1.6; }
 .inventory-slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 18px 0; }

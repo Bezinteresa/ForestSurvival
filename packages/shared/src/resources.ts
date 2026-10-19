@@ -34,6 +34,11 @@ export const TEST_MATERIAL_NODES: readonly MaterialNodeDefinition[] = [
   { id: 'scrap-06', kind: 'scrap-pile', position: { x: -15, y: 0, z: 4 }, radius: 0.7, height: 1.2 },
   { id: 'scrap-07', kind: 'scrap-pile', position: { x: 3, y: 0, z: 15 }, radius: 0.7, height: 1.2 },
   { id: 'scrap-08', kind: 'scrap-pile', position: { x: 14, y: 0, z: -5 }, radius: 0.7, height: 1.2 },
+  { id: 'rock-07', kind: 'rock', position: { x: -17, y: 0, z: -6 }, radius: 0.7, height: 1.2 },
+  { id: 'scrap-09', kind: 'scrap-pile', position: { x: -16, y: 0, z: -16 }, radius: 0.7, height: 1.2 },
+  { id: 'scrap-10', kind: 'scrap-pile', position: { x: 16, y: 0, z: 16 }, radius: 0.7, height: 1.2 },
+  { id: 'scrap-11', kind: 'scrap-pile', position: { x: -17, y: 0, z: 8 }, radius: 0.7, height: 1.2 },
+  { id: 'scrap-12', kind: 'scrap-pile', position: { x: 17, y: 0, z: -11 }, radius: 0.7, height: 1.2 },
 ];
 
 export const CAMP_STORAGE = { id: 'camp-storage', position: { x: -1.5, y: 0.5, z: -2 }, halfSize: { x: 0.6, y: 0.5, z: 0.4 }, range: 2.6, slots: 8 } as const;

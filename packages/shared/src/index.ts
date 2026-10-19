@@ -2,6 +2,7 @@ import type { GameplaySnapshot } from './gameplay';
 import type { VitalsSnapshot } from './survival';
 import type { CampfireLevel } from './campfire';
 import type { WorldClockSnapshot } from './time';
+import type { WorkbenchLevel } from './crafting';
 export * from './gameplay';
 export * from './items';
 export * from './resources';
@@ -62,6 +63,7 @@ export type SessionCommand = { readonly requestId: string } & (
   | { readonly type: 'fuel-fire'; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'upgrade-fire'; readonly expectedLevel: CampfireLevel }
   | { readonly type: 'build-workbench' }
+  | { readonly type: 'upgrade-workbench'; readonly expectedLevel: WorkbenchLevel }
   | { readonly type: 'craft-item'; readonly recipeId: string }
   | { readonly type: 'pickup'; readonly targetId: string }
   | { readonly type: 'interact' }
@@ -128,5 +130,9 @@ export const TEST_WORLD = {
     { id: 'tree-06', position: { x: 12, y: 0, z: -11 }, radius: 0.4, trunkHeight: 2.7 },
     { id: 'tree-07', position: { x: -13, y: 0, z: -3 }, radius: 0.45, trunkHeight: 2.8 },
     { id: 'tree-08', position: { x: 0, y: 0, z: -13 }, radius: 0.5, trunkHeight: 3.2 },
+    { id: 'tree-09', position: { x: -17, y: 0, z: -14 }, radius: 0.4, trunkHeight: 2.6 },
+    { id: 'tree-10', position: { x: 17, y: 0, z: 14 }, radius: 0.4, trunkHeight: 2.6 },
+    { id: 'tree-11', position: { x: -16, y: 0, z: 16 }, radius: 0.4, trunkHeight: 2.6 },
+    { id: 'tree-12', position: { x: 16, y: 0, z: -16 }, radius: 0.4, trunkHeight: 2.6 },
   ] satisfies readonly TreeDefinition[],
 } as const;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef } from 'vue';
-import { DIAGNOSTIC_SPEEDS, itemLabel, isFood, type CampfireLevel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
+import { DIAGNOSTIC_SPEEDS, itemLabel, isFood, type CampfireLevel, type WorkbenchLevel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
 import type { Game } from './game/core/Game';
 import type { InputState } from './game/input/InputState';
 import type { ControlStatus } from './game/input/BrowserInput';
@@ -141,7 +141,7 @@ function reportInventory(result?: CommandResult): void {
     'fire-full': 'Нет места для всей порции топлива. Древесина сохранена.',
     'wrong-fuel': 'Для костра нужна древесина.',
     'fire-out': 'Сначала разожгите костёр.',
-    'max-level': 'Достигнут максимальный уровень костра.',
+    'max-level': 'Максимальный уровень уже достигнут.',
     'insufficient-materials': 'Не хватает материалов в рюкзаке.',
     'station-required': 'Сначала постройте верстак.',
     'station-level': 'Нужен верстак более высокого уровня.',
@@ -185,6 +185,12 @@ function buildWorkbench(): void {
   const result = game?.sendCommand({ type: 'build-workbench', requestId: 'ui-' + (++requestNumber) });
   reportInventory(result);
   if (result?.reason === 'blocked') inventoryNote.value = 'Освободите площадку и путь к верстаку.';
+}
+function upgradeWorkbench(expectedLevel: WorkbenchLevel): void {
+  const result = game?.sendCommand({ type: 'upgrade-workbench', expectedLevel, requestId: 'ui-' + (++requestNumber) });
+  reportInventory(result);
+  if (result?.reason === 'stale') inventoryNote.value = 'Уровень верстака изменился. Проверьте следующее улучшение.';
+  if (result?.reason === 'blocked') inventoryNote.value = 'Верстак закрыт препятствием.';
 }
 function craftItem(recipeId: string): void {
   const result = game?.sendCommand({ type: 'craft-item', recipeId, requestId: 'ui-' + (++requestNumber) });
@@ -239,7 +245,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
       <progress v-if="gameplay.attack.phase !== 'idle'" :value="gameplay.attack.progress" max="1" aria-label="Восстановление после удара" />
     </div>
     <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="canInteract" :interaction-label="interactionLabel" :primary-label="foodInHand ? 'Есть' : 'Удар'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
-    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :workbench="gameplay.workbench" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @build-workbench="buildWorkbench" @craft-item="craftItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
+    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :workbench="gameplay.workbench" :focus-workbench="gameplay.interaction?.kind === 'workbench'" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @build-workbench="buildWorkbench" @upgrade-workbench="upgradeWorkbench" @craft-item="craftItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
     <PlayerStatus v-if="canPlay && snapshot" :vitals="snapshot.vitals" />
     <RunResult v-if="ended && snapshot" :vitals="snapshot.vitals" :clock="snapshot.clock" :elapsed="elapsed" @restart="start" @leave="stop" />
     <div v-if="active && paused" class="pause-backdrop" />

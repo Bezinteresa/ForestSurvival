@@ -22,7 +22,7 @@ export class WorkbenchView {
   }
 
   update(state: WorkbenchSnapshot): void {
-    this.material.color.setHex(state.built ? 0x9b7951 : 0x76c6d5);
+    this.material.color.setHex(state.level === 3 ? 0x688f96 : state.level === 2 ? 0x99958c : state.built ? 0x9b7951 : 0x76c6d5);
     this.material.opacity = state.built ? 1 : 0.3;
     if (this.material.transparent === state.built) { this.material.transparent = !state.built; this.material.needsUpdate = true; }
     this.material.depthWrite = state.built;

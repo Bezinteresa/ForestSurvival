@@ -60,6 +60,26 @@ describe('six-level campfire resource progression', () => {
     collect('wood', 1); collect('scrap', 1);
     expect(world.craftItem('basic-pickaxe', builder, now).accepted).toBe(true);
     expect(world.getSnapshot(now).workbench).toMatchObject({ built: true, level: 1 });
+    // Store spare basic tools so the ordinary five-slot bag can carry upgrade prices.
+    for (const id of ['camp-workbench/crafted/0', 'camp-workbench/crafted/1']) {
+      const slot = bag.snapshot().slots.findIndex((stack) => stack?.id === id);
+      expect(world.transfer('deposit', slot, id, builder, now).accepted).toBe(true);
+    }
+    collect('wood', 2); collect('scrap', 1);
+    expect(world.upgradeWorkbench(1, builder, now).accepted).toBe(true);
+    collect('wood', 2); collect('stone', 1); collect('scrap', 2);
+    expect(world.upgradeWorkbench(2, builder, now).accepted).toBe(true);
+    expect(bag.snapshot().slots).toHaveLength(5);
+    collect('wood', 3); collect('scrap', 2);
+    expect(world.craftItem('expanded-backpack', builder, now).accepted).toBe(true);
+    expect(bag.snapshot()).toMatchObject({ level: 2, slots: Array(8).fill(null).map((_, index) => index < 2 ? expect.anything() : null) });
+    for (const recipe of ['reinforced-axe', 'reinforced-pickaxe']) {
+      collect('wood', 1); collect('scrap', 2);
+      expect(world.craftItem(recipe, builder, now).accepted).toBe(true);
+    }
+    expect(world.getSnapshot(now).workbench).toMatchObject({ built: true, level: 3, nextUpgrade: null });
+    const remaining = (itemId: ItemId) => world.getSnapshot(now).loot.filter((item) => item.itemId === itemId).reduce((sum, item) => sum + item.amount, 0);
+    expect(['wood', 'stone', 'scrap', 'coal'].map((id) => remaining(id as ItemId))).toEqual([7, 3, 4, 6]);
     expect(world.isWarm({ x: 14.99, y: 0.92, z: 2.8 })).toBe(true);
     expect(world.isWarm({ x: 15.01, y: 0.92, z: 2.8 })).toBe(false);
     world.step(60);

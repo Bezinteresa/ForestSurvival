@@ -105,15 +105,35 @@ export class Inventory {
 
   craft(cost: MaterialCost, output: ItemStack): CommandResult {
     if (!this.validStack(output) || this.slots.some((stack) => stack?.id === output.id)) return { accepted: false, reason: 'invalid' };
-    const initial: Array<readonly [number, ItemStack]> = [];
-    this.slots.forEach((stack, slot) => { if (stack) initial.push([slot, stack]); });
-    const draft = new Inventory(this.slots.length, initial);
+    const draft = this.copyForCraft();
     const spent = draft.spendMaterials(cost);
     if (!spent.accepted) return spent;
     const inserted = draft.insert(output);
     if (!inserted.accepted) return inserted;
     this.slots = draft.slots;
     return { accepted: true };
+  }
+
+  craftBackpack(cost: MaterialCost, level: UpgradeLevel): CommandResult {
+    if (level !== 2) return { accepted: false, reason: 'invalid' };
+    if (this.level >= level) return { accepted: false, reason: 'max-level' };
+    const draft = this.copyForCraft();
+    const spent = draft.spendMaterials(cost);
+    if (!spent.accepted) return spent;
+    const upgraded = draft.upgradeBackpack(level);
+    if (!upgraded.accepted) return upgraded;
+    this.slots = draft.slots;
+    this.level = draft.level;
+    return { accepted: true };
+  }
+
+  private copyForCraft(): Inventory {
+    const initial: Array<readonly [number, ItemStack]> = [];
+    this.slots.forEach((stack, slot) => { if (stack) initial.push([slot, stack]); });
+    const draft = new Inventory(this.slots.length, initial);
+    draft.activeSlot = this.activeSlot;
+    draft.level = this.level;
+    return draft;
   }
 
   upgradeTool(slot: number, level: UpgradeLevel): CommandResult {
