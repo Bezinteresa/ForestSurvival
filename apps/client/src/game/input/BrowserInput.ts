@@ -28,6 +28,7 @@ export class BrowserInput {
   private readonly keys = new Set<string>();
   private readonly cleanups: Array<() => void> = [];
   private orbiting = false;
+  private mouseButtons = 0;
   private locked = false;
   private expectedRelease = false;
   private captureRejected = false;
@@ -137,22 +138,32 @@ export class BrowserInput {
 
   private readonly pointerDown = (event: PointerEvent): void => {
     if (!this.input.enabled || event.pointerType === 'touch') return;
-    if (event.button === 2) { event.preventDefault(); this.orbiting = true; }
-    if (event.button === 0) {
+    if (event.button === 2) event.preventDefault();
+    this.syncMouseButtons(event);
+  };
+
+  private syncMouseButtons(event: PointerEvent): void {
+    const previouslyPressed = this.mouseButtons;
+    this.mouseButtons = event.buttons;
+    this.orbiting = (event.buttons & 2) !== 0;
+    if ((event.buttons & 1) === 0) this.input.setHeld('Primary', 'mouse', false);
+    else if ((previouslyPressed & 1) === 0 && !isUiTarget(event.target)) {
       if (this.camera.facesCamera && !this.locked && !this.captureRejected) { this.requestCapture(); return; }
       this.input.setHeld('Primary', 'mouse', true);
     }
-  };
+  }
 
   private readonly pointerMove = (event: PointerEvent): void => {
-    if (event.pointerType === 'touch' || (!this.orbiting && !this.locked)) return;
+    if (!this.input.enabled || event.pointerType === 'touch') return;
+    // Chorded mouse presses/releases arrive as pointermove until the last button is released.
+    if (this.mouseButtons !== 0 || this.locked) this.syncMouseButtons(event);
+    if (!this.orbiting && !this.locked) return;
     this.input.addLook(event.movementX, event.movementY, 'mouse');
   };
 
   private readonly pointerUp = (event: PointerEvent): void => {
     if (event.pointerType === 'touch') return;
-    if (event.button === 2) this.orbiting = false;
-    if (event.button === 0) this.input.setHeld('Primary', 'mouse', false);
+    if (this.input.enabled && (this.mouseButtons !== 0 || this.locked)) this.syncMouseButtons(event);
   };
 
   private readonly pointerLockChange = (): void => {
@@ -177,6 +188,7 @@ export class BrowserInput {
   private reset(): void {
     this.keys.clear();
     this.orbiting = false;
+    this.mouseButtons = 0;
     this.input.clear();
   }
 

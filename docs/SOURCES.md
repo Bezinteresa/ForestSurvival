@@ -52,3 +52,7 @@
 - Rapier scene queries: https://rapier.rs/docs/user_guides/javascript/scene_queries/ — лучи видимости и исключение коллайдеров игрока/цели.
 
 Сектор, тайминги, DamageInfo, ограничения контейнера и защита от повторной выдачи — правила нашей реализации; не механики, автоматически предоставляемые Three.js или Rapier.
+
+## Несколько кнопок мыши — 2026-10-19
+
+- W3C Pointer Events, chorded button interactions: https://www.w3.org/TR/pointerevents3/#chorded-button-interactions — при удерживаемой кнопке дополнительные нажатия/отпускания отражаются через button/buttons и pointermove, а не отдельные pointerdown/pointerup. Регрессионные тесты воспроизводят эту последовательность.

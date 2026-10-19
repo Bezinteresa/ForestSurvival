@@ -39,6 +39,68 @@ function setup(denyCapture = false, onInventoryKey: () => boolean = () => false)
 }
 
 describe('browser event adapter using EventTarget (without a browser)', () => {
+  it.each(['left-first', 'right-first'] as const)('attacks repeatedly during RMB orbit and releases both buttons in %s order', (releaseOrder) => {
+    const { canvas, win, input } = setup();
+    dispatch(canvas, 'pointerdown', { pointerType: 'mouse', button: 2, buttons: 2 });
+    // With RMB already held, pressing LMB produces pointermove, not another pointerdown.
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: 0, buttons: 3, movementX: 5, movementY: 1 });
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(true);
+    expect(input.consumeLook().mouse).toEqual({ x: 5, y: 1 });
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: -1, buttons: 3, movementX: 4, movementY: 0 });
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(false);
+    input.consumeLook();
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: 0, buttons: 2, movementX: 0, movementY: 0 });
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: 0, buttons: 3, movementX: 0, movementY: 0 });
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(true);
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: releaseOrder === 'left-first' ? 0 : 2, buttons: releaseOrder === 'left-first' ? 2 : 1, movementX: 6, movementY: 0 });
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(false);
+    expect(input.consumeLook().mouse.x).toBe(releaseOrder === 'left-first' ? 6 : 0);
+    dispatch(win, 'pointerup', { pointerType: 'mouse', button: releaseOrder === 'left-first' ? 2 : 0, buttons: 0 });
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: -1, buttons: 0, movementX: 9, movementY: 0 });
+    expect(input.consumeLook().mouse.x).toBe(0);
+    dispatch(canvas, 'pointerdown', { pointerType: 'mouse', button: 0, buttons: 1 });
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(true);
+  });
+
+  it('starts orbit when RMB is pressed after LMB without repeating the attack', () => {
+    const { canvas, win, input } = setup();
+    dispatch(canvas, 'pointerdown', { pointerType: 'mouse', button: 0, buttons: 1 });
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(true);
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: 2, buttons: 3, movementX: 7, movementY: 0 });
+    expect(input.consumeLook().mouse.x).toBe(7);
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(false);
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: 0, buttons: 2, movementX: 3, movementY: 0 });
+    expect(input.consumeLook().mouse.x).toBe(3);
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: 0, buttons: 3, movementX: 0, movementY: 0 });
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(true);
+  });
+
+  it('keeps the first pointer-capture click separate from an attack', () => {
+    const { binding, canvas, win, input } = setup();
+    for (let index = 0; index < 20; index++) binding.zoom(-1);
+    dispatch(canvas, 'pointerdown', { pointerType: 'mouse', button: 0, buttons: 1 });
+    expect(canvas.requestPointerLock).toHaveBeenCalledTimes(1);
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(false);
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: -1, buttons: 1, movementX: 2, movementY: 0 });
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(false);
+    dispatch(win, 'pointerup', { pointerType: 'mouse', button: 0, buttons: 0 });
+    dispatch(canvas, 'pointerdown', { pointerType: 'mouse', button: 0, buttons: 1 });
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(true);
+  });
+
+  it('does not turn UI clicks or a cancelled mouse gesture into attacks', () => {
+    const { canvas, win, input } = setup();
+    dispatch(canvas, 'pointerdown', { pointerType: 'mouse', button: 2, buttons: 2 });
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: 0, buttons: 3, movementX: 0, movementY: 0, target: { closest: () => ({}) } });
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(false);
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: -1, buttons: 3, movementX: 0, movementY: 0 });
+    expect(input.consumeFrame().pressed.has('Primary')).toBe(false);
+    dispatch(win, 'pointercancel', { pointerType: 'mouse' });
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: 0, buttons: 3, movementX: 7, movementY: 0 });
+    expect(input.consumeFrame().pressed.size).toBe(0);
+    expect(input.consumeLook().mouse.x).toBe(0);
+  });
+
   it('closes an inventory with Tab or Escape while UI blocks gameplay keys', () => {
     const close = vi.fn(() => true);
     const { win, input } = setup(false, close);
@@ -112,10 +174,10 @@ describe('browser event adapter using EventTarget (without a browser)', () => {
     const { win, canvas, input } = setup();
     dispatch(win, 'pointermove', { pointerType: 'mouse', movementX: 10, movementY: 2 });
     expect(input.consumeLook().mouse.x).toBe(0);
-    dispatch(canvas, 'pointerdown', { pointerType: 'mouse', button: 2 });
-    dispatch(win, 'pointermove', { pointerType: 'mouse', movementX: 10, movementY: 2 });
+    dispatch(canvas, 'pointerdown', { pointerType: 'mouse', button: 2, buttons: 2 });
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: -1, buttons: 2, movementX: 10, movementY: 2 });
     expect(input.consumeLook().mouse).toEqual({ x: 10, y: 2 });
-    dispatch(win, 'pointerup', { pointerType: 'mouse', button: 2 });
+    dispatch(win, 'pointerup', { pointerType: 'mouse', button: 2, buttons: 0 });
     dispatch(win, 'pointermove', { pointerType: 'mouse', movementX: 20, movementY: 4 });
     expect(input.consumeLook().mouse.x).toBe(0);
     expect(dispatch(canvas, 'contextmenu').defaultPrevented).toBe(true);
@@ -128,10 +190,10 @@ describe('browser event adapter using EventTarget (without a browser)', () => {
     await Promise.resolve();
     expect(camera.getPose().locked).toBe(true);
     expect(status.mock.lastCall?.[0].message).toContain('ПКМ');
-    dispatch(canvas, 'pointerdown', { pointerType: 'mouse', button: 2 });
-    dispatch(win, 'pointermove', { pointerType: 'mouse', movementX: 6, movementY: 0 });
+    dispatch(canvas, 'pointerdown', { pointerType: 'mouse', button: 2, buttons: 2 });
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: -1, buttons: 2, movementX: 6, movementY: 0 });
     expect(input.consumeLook().mouse.x).toBe(6);
-    dispatch(canvas, 'pointerdown', { pointerType: 'mouse', button: 0 });
+    dispatch(win, 'pointermove', { pointerType: 'mouse', button: 0, buttons: 3, movementX: 0, movementY: 0 });
     expect(input.consumeFrame().pressed.has('Primary')).toBe(true);
     expect(canvas.requestPointerLock).toHaveBeenCalledTimes(1);
   });
