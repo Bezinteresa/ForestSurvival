@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef } from 'vue';
-import { itemLabel, isFood, type CampfireLevel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
+import { DIAGNOSTIC_SPEEDS, itemLabel, isFood, type CampfireLevel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
 import type { Game } from './game/core/Game';
 import type { InputState } from './game/input/InputState';
 import type { ControlStatus } from './game/input/BrowserInput';
@@ -9,12 +9,14 @@ import TouchControls from './ui/TouchControls.vue';
 import InventoryPanel from './ui/InventoryPanel.vue';
 import PlayerStatus from './ui/PlayerStatus.vue';
 import RunResult from './ui/RunResult.vue';
+import WorldClockHud from './ui/WorldClockHud.vue';
 
 const host = useTemplateRef<HTMLDivElement>('scene');
 const snapshot = shallowRef<SessionSnapshot>();
 const loading = ref(false);
 const error = ref('');
 const showDebug = ref(false);
+const simulationSpeed = ref(1);
 const inventoryOpen = ref(false);
 const inventoryNote = ref('');
 const currentInput = shallowRef<InputState>();
@@ -71,6 +73,7 @@ async function start(): Promise<void> {
   stop();
   error.value = '';
   showDebug.value = false;
+  simulationSpeed.value = 1;
   loading.value = true;
   const ownGeneration = generation;
   const controller = new AbortController();
@@ -114,6 +117,11 @@ function togglePause(): void {
 function toggleDebug(event: Event): void {
   showDebug.value = (event.target as HTMLInputElement).checked;
   game?.setDebug(showDebug.value);
+}
+
+function setSimulationSpeed(speed: number): void {
+  const result = game?.setSimulationSpeed(speed);
+  if (result?.accepted) simulationSpeed.value = speed;
 }
 
 function resetPosition(): void {
@@ -203,7 +211,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
       <p class="footnote">Локальная сессия · без подключения к серверу</p>
     </section>
 
-    <div v-if="canPlay" class="play-readings"><span>{{ elapsed }}</span><span>{{ snapshot?.player.grounded ? 'На земле' : 'В воздухе' }}</span><span>{{ controls.firstPerson ? 'Первое лицо' : controls.cameraLocked ? 'Камера фиксирована' : 'Третье лицо' }}</span></div>
+    <WorldClockHud v-if="canPlay && snapshot" :clock="snapshot.clock" :speed="simulationSpeed" />
     <div v-if="canPlay && !inventoryOpen" class="crosshair" aria-hidden="true">+</div>
     <p v-if="canPlay && controls.message" class="control-message" role="status">{{ controls.message }}</p>
     <div v-if="canPlay && gameplay" class="resource-count">Ресурсы <strong>{{ materials.wood }} дер. · {{ materials.stone }} кам. · {{ materials.scrap }} мет.</strong><span>Слоты {{ gameplay.inventory.slots.filter(Boolean).length }} / {{ gameplay.inventory.slots.length }}</span></div>
@@ -220,7 +228,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
     <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="canInteract" :interaction-label="interactionLabel" :primary-label="foodInHand ? 'Есть' : 'Удар'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
     <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
     <PlayerStatus v-if="canPlay && snapshot" :vitals="snapshot.vitals" />
-    <RunResult v-if="ended && snapshot" :vitals="snapshot.vitals" :elapsed="elapsed" @restart="start" @leave="stop" />
+    <RunResult v-if="ended && snapshot" :vitals="snapshot.vitals" :clock="snapshot.clock" :elapsed="elapsed" @restart="start" @leave="stop" />
     <div v-if="active && paused" class="pause-backdrop" />
     <section v-if="active && paused" class="scene-panel" aria-label="Меню паузы" data-ui>
       <p class="eyebrow">ТЕСТОВАЯ ПОЛЯНА</p>
@@ -229,6 +237,8 @@ onBeforeUnmount(() => { disposed = true; stop(); });
       <div class="readings">
         <div><span>Время сцены</span><strong>{{ elapsed }}</strong></div>
         <div><span>Персонаж</span><strong>{{ snapshot?.player.grounded ? 'На земле' : 'В воздухе' }}</strong></div>
+        <div><span>Фаза</span><strong>{{ snapshot?.clock.phase === 'night' ? 'Ночь' : 'День' }} {{ snapshot?.clock.cycleNumber }}</strong></div>
+        <div><span>Ночей / зачтено дней</span><strong>{{ snapshot?.clock.physicalCycles }} / {{ snapshot?.clock.creditedDays }}</strong></div>
       </div>
       <p v-if="paused" class="pause-note" role="status">Пауза. Можно продолжить с того же места.</p>
       <div class="actions"><button class="button primary" @click="togglePause">{{ paused ? 'Продолжить' : 'Пауза' }}</button><button class="button secondary" @click="start">Заново</button></div>
@@ -243,6 +253,10 @@ onBeforeUnmount(() => { disposed = true; stop(); });
         <summary>Проверка сцены</summary>
         <label><input type="checkbox" :checked="showDebug" @change="toggleDebug" />Показывать коллайдеры</label>
         <button class="text-button" @click="resetPosition">Сбросить позицию персонажа</button>
+        <template v-if="gameplay?.debugTools">
+          <p>Режим разработки: скорость всей симуляции. Голод и топливо тоже ускоряются.</p>
+          <div class="diagnostic-speeds"><button v-for="speed in DIAGNOSTIC_SPEEDS" :key="speed" class="button secondary" :aria-pressed="simulationSpeed === speed" @click="setSimulationSpeed(speed)">x{{ speed }}</button></div>
+        </template>
       </details>
       <button class="text-button leave" @click="stop">Завершить сцену</button>
     </section>

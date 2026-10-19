@@ -1,11 +1,13 @@
 import type { GameplaySnapshot } from './gameplay';
 import type { VitalsSnapshot } from './survival';
 import type { CampfireLevel } from './campfire';
+import type { WorldClockSnapshot } from './time';
 export * from './gameplay';
 export * from './items';
 export * from './resources';
 export * from './survival';
 export * from './campfire';
+export * from './time';
 
 export type EntityId = string;
 
@@ -43,6 +45,7 @@ export interface SessionSnapshot {
   readonly player: PlayerSnapshot;
   readonly gameplay: GameplaySnapshot;
   readonly vitals: VitalsSnapshot;
+  readonly clock: WorldClockSnapshot;
 }
 
 export type SessionCommand = { readonly requestId: string } & (

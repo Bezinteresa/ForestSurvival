@@ -4,6 +4,7 @@ import { PlayerVitals } from '../player/PlayerVitals';
 import { GameplayWorld } from '../world/GameplayWorld';
 import { PhysicsWorld, interpolatePosition, type DebugGeometry } from '../world/PhysicsWorld';
 import type { GameSession } from './GameSession';
+import { WorldClock } from '@forest-survival/shared';
 
 export class LocalSession implements GameSession {
   private status: SessionStatus = 'ready';
@@ -15,6 +16,7 @@ export class LocalSession implements GameSession {
   private readonly handledRequests = new Map<string, CommandResult>();
   private readonly gameplay: GameplayWorld;
   private readonly vitals = new PlayerVitals();
+  private readonly clock = new WorldClock();
   private viewYaw = Math.PI;
   private destroyed = false;
 
@@ -49,6 +51,7 @@ export class LocalSession implements GameSession {
     this.currentPlayer = { ...this.physics.getPlayerSnapshot(), yaw: this.gameplay.getAttackYaw(this.simulationTime) ?? motion.yaw };
     this.viewYaw = Math.atan2(Math.sin(input.cameraYaw), -Math.cos(input.cameraYaw));
     this.simulationTime += dt;
+    this.clock.update(this.simulationTime);
     this.gameplay.step(dt);
     this.vitals.step(dt, this.simulationTime);
     if (this.vitals.dead) {
@@ -74,6 +77,7 @@ export class LocalSession implements GameSession {
       player: { ...this.currentPlayer, position: { ...this.currentPlayer.position } },
       gameplay: this.gameplay.getSnapshot(this.simulationTime),
       vitals: this.vitals.snapshot(),
+      clock: this.clock.snapshot(),
     };
   }
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TEST_WORLD } from '@forest-survival/shared';
 import { GameplayView } from './GameplayView';
+import { DayNightView } from './DayNightView';
 import { getCameraPlacement } from '../player/CameraController';
 import { resolveCameraCollision } from '../player/CameraCollision';
 import type { GameFrame, GameView } from '../core/GameView';
@@ -12,6 +13,7 @@ export class SceneView implements GameView {
   private readonly cameraObstacles: THREE.Object3D[] = [];
   private readonly trees = new Map<string, THREE.Group>();
   private gameplayView: GameplayView | undefined;
+  private dayNightView: DayNightView | undefined;
   get canvas(): HTMLCanvasElement { return this.renderer.domElement; }
   private readonly debugLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x65ffe1, depthTest: false }));
   private observer: ResizeObserver | undefined;
@@ -56,6 +58,7 @@ export class SceneView implements GameView {
     this.player.position.set(frame.playerPosition.x, frame.playerPosition.y, frame.playerPosition.z);
     this.player.rotation.y = frame.playerYaw;
     this.gameplayView?.update(frame);
+    this.dayNightView?.update(frame.clock);
     const placement = getCameraPlacement(frame.playerPosition, frame.camera);
     const position = frame.camera.firstPerson ? placement.position : resolveCameraCollision(placement.target, placement.position, this.cameraObstacles);
     this.camera.position.set(position.x, position.y, position.z);
@@ -114,12 +117,7 @@ export class SceneView implements GameView {
   };
 
   private populate(): void {
-    this.scene.background = new THREE.Color(0x9dbaa8);
-    this.scene.fog = new THREE.Fog(0x9dbaa8, 35, 80);
-    this.scene.add(new THREE.HemisphereLight(0xd8efff, 0x44552d, 2.4));
-    const sunlight = new THREE.DirectionalLight(0xffe4ac, 3.1);
-    sunlight.position.set(-8, 14, 7);
-    this.scene.add(sunlight);
+    this.dayNightView = new DayNightView(this.scene);
     this.camera.position.set(18, 16, 23);
     this.camera.lookAt(0, 0.6, 0);
 

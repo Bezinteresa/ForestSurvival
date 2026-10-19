@@ -2,7 +2,7 @@ import { InputState } from '../input/InputState';
 import { BrowserInput, type ControlStatus } from '../input/BrowserInput';
 import { DEFAULT_CONTROL_SETTINGS, sanitizeControlSettings, type ControlSettings } from '../input/ControlSettings';
 import { CameraController } from '../player/CameraController';
-import type { CommandResult, SessionCommand, SessionSnapshot } from '@forest-survival/shared';
+import { DIAGNOSTIC_SPEEDS, type CommandResult, type SessionCommand, type SessionSnapshot, type SimulationSpeed } from '@forest-survival/shared';
 import type { InputAction } from '../input/InputState';
 import { LocalSession } from '../session/LocalSession';
 import { SceneView } from '../world/SceneView';
@@ -17,6 +17,7 @@ export class Game {
   private readonly loop: FixedStepLoop;
   private destroyed = false;
   private debugEnabled = false;
+  private simulationSpeed: SimulationSpeed = 1;
   private commandNumber = 0;
   private inventoryOpen = false;
   private readonly cleanups: Array<() => void> = [];
@@ -51,27 +52,10 @@ export class Game {
     this.settings = sanitizeControlSettings(settings);
     this.loop = new FixedStepLoop(
       (dt) => {
-        this.camera.look(this.input.consumeLook(), this.settings);
-        const frame = this.input.consumeFrame();
-        const nextRequest = () => 'input-' + (++this.commandNumber);
-        if (frame.pressed.has('Inventory')) this.toggleInventory();
-        else if (frame.pressed.has('Interact') && session.getSnapshot().gameplay.interaction?.kind === 'storage') {
-          if (session.sendCommand({ type: 'interact', requestId: nextRequest() }).accepted) this.toggleInventory();
-        }
-        const yaw = Math.atan2(Math.sin(this.camera.cameraYaw), -Math.cos(this.camera.cameraYaw));
-        if (this.input.enabled) {
-          for (let slot = 0; slot < 5; slot++) if (frame.pressed.has(('Hotbar' + (slot + 1)) as InputAction)) session.sendCommand({ type: 'select-slot', slot, requestId: nextRequest() });
-          if (frame.pressed.has('Primary')) session.sendCommand({ type: 'use-item', yaw, requestId: nextRequest() });
-          if (frame.pressed.has('Interact')) session.sendCommand({ type: 'interact', requestId: nextRequest() });
-          if (frame.pressed.has('Drop')) session.sendCommand({ type: 'drop-item', slot: session.getSnapshot().gameplay.inventory.activeSlot, yaw, requestId: nextRequest() });
-        }
-        session.step(dt, { moveX: this.input.enabled ? frame.move.x : 0, moveY: this.input.enabled ? frame.move.y : 0, sprint: this.input.enabled && frame.sprint, jump: this.input.enabled && frame.pressed.has('Jump'), cameraYaw: this.camera.cameraYaw, faceCamera: this.camera.facesCamera });
-        if (session.getSnapshot().status === 'ended') {
-          this.loop.stop();
-          this.closeInventory();
-          this.input.setContext('ui');
-          this.browserInput?.suspend();
-          this.render(1);
+        const speed = this.simulationSpeed;
+        for (let substep = 0; substep < speed; substep++) {
+          if (this.destroyed || session.getSnapshot().status !== 'running') break;
+          this.tick(dt);
         }
       },
       (alpha) => this.render(alpha),
@@ -97,6 +81,16 @@ export class Game {
     this.browserInput?.suspend();
     this.session.pause();
     this.render(1);
+  }
+
+  setSimulationSpeed(speed: number): CommandResult {
+    if (this.destroyed) return { accepted: false, reason: 'invalid' };
+    const snapshot = this.session.getSnapshot();
+    if (snapshot.status === 'ended') return { accepted: false, reason: 'dead' };
+    if (!snapshot.gameplay.debugTools) return { accepted: false, reason: 'forbidden' };
+    if (!(DIAGNOSTIC_SPEEDS as readonly number[]).includes(speed)) return { accepted: false, reason: 'invalid' };
+    this.simulationSpeed = speed as SimulationSpeed;
+    return { accepted: true };
   }
 
   setSettings(settings: ControlSettings): void { this.settings = sanitizeControlSettings(settings); }
@@ -157,12 +151,39 @@ export class Game {
     this.view.destroy();
   }
 
+  private tick(dt: number): void {
+    const session = this.session;
+    this.camera.look(this.input.consumeLook(), this.settings);
+    const frame = this.input.consumeFrame();
+    const nextRequest = () => 'input-' + (++this.commandNumber);
+    if (frame.pressed.has('Inventory')) this.toggleInventory();
+    else if (frame.pressed.has('Interact') && session.getSnapshot().gameplay.interaction?.kind === 'storage') {
+      if (session.sendCommand({ type: 'interact', requestId: nextRequest() }).accepted) this.toggleInventory();
+    }
+    const yaw = Math.atan2(Math.sin(this.camera.cameraYaw), -Math.cos(this.camera.cameraYaw));
+    if (this.input.enabled) {
+      for (let slot = 0; slot < 5; slot++) if (frame.pressed.has(('Hotbar' + (slot + 1)) as InputAction)) session.sendCommand({ type: 'select-slot', slot, requestId: nextRequest() });
+      if (frame.pressed.has('Primary')) session.sendCommand({ type: 'use-item', yaw, requestId: nextRequest() });
+      if (frame.pressed.has('Interact')) session.sendCommand({ type: 'interact', requestId: nextRequest() });
+      if (frame.pressed.has('Drop')) session.sendCommand({ type: 'drop-item', slot: session.getSnapshot().gameplay.inventory.activeSlot, yaw, requestId: nextRequest() });
+    }
+    session.step(dt, { moveX: this.input.enabled ? frame.move.x : 0, moveY: this.input.enabled ? frame.move.y : 0, sprint: this.input.enabled && frame.sprint, jump: this.input.enabled && frame.pressed.has('Jump'), cameraYaw: this.camera.cameraYaw, faceCamera: this.camera.facesCamera });
+    if (session.getSnapshot().status === 'ended') {
+      this.loop.stop();
+      this.closeInventory();
+      this.input.setContext('ui');
+      this.browserInput?.suspend();
+      this.render(1);
+    }
+  }
+
   private render(alpha: number): void {
     this.camera.look(this.input.consumeLook(), this.settings);
     const snapshot = this.session.getSnapshot();
     this.view.render({
       gameplay: snapshot.gameplay,
       simulationTime: snapshot.simulationTime,
+      clock: snapshot.clock,
       playerPosition: this.session.getRenderPosition(alpha),
       playerYaw: this.session.getRenderYaw(alpha),
       camera: this.camera.getPose(),

@@ -73,6 +73,11 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 /* Controls stay clear of the playable center on desktop and touch screens. */
 .header-actions { display: flex; gap: 10px; align-items: center; pointer-events: auto; }
 .play-readings { position: absolute; left: 36px; top: 110px; z-index: 1; display: flex; gap: 12px; flex-wrap: wrap; padding: 10px 14px; background: #102017db; border-radius: 12px; font-size: 11px; }
+.play-readings.world-clock-hud { display: grid; gap: 3px; padding: 6px 12px; line-height: 12px; font-size: 10px; pointer-events: none; }
+.world-clock-hud strong { color: #e3eabc; }
+.diagnostic-speed { color: #ffc3a8; font-weight: 500; }
+.diagnostic-speeds { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.diagnostic-speeds button[aria-pressed=true] { color: #1e2b1c; background: #d6e5a9; }
 .crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; color: #ffffffc4; font-size: 22px; text-shadow: 0 1px 3px #14231b; }
 .control-message { position: absolute; z-index: 3; top: 150px; left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 40px)); background: #14231be6; border-radius: 10px; padding: 12px; font-size: 12px; text-align: center; }
 .pause-backdrop { position: absolute; inset: 0; background: #08130da3; z-index: 2; }
