@@ -76,7 +76,7 @@ export class Inventory {
 
   spendMaterials(cost: MaterialCost): CommandResult {
     const entries = Object.entries(cost);
-    if (!entries.length || entries.some(([itemId, amount]) => !['wood', 'stone', 'scrap'].includes(itemId) || !Number.isSafeInteger(amount) || amount <= 0)) return { accepted: false, reason: 'invalid' };
+    if (!entries.length || entries.some(([itemId, amount]) => !['wood', 'stone', 'scrap', 'coal'].includes(itemId) || !Number.isSafeInteger(amount) || amount <= 0)) return { accepted: false, reason: 'invalid' };
     const next = this.slots.map((stack) => stack ? { ...stack } : null);
     for (const [itemId, amount] of entries) {
       let remaining = amount;
@@ -100,6 +100,19 @@ export class Inventory {
     const inserted = destination.insert(stack);
     if (!inserted.accepted) return inserted;
     this.remove(slot);
+    return { accepted: true };
+  }
+
+  craft(cost: MaterialCost, output: ItemStack): CommandResult {
+    if (!this.validStack(output) || this.slots.some((stack) => stack?.id === output.id)) return { accepted: false, reason: 'invalid' };
+    const initial: Array<readonly [number, ItemStack]> = [];
+    this.slots.forEach((stack, slot) => { if (stack) initial.push([slot, stack]); });
+    const draft = new Inventory(this.slots.length, initial);
+    const spent = draft.spendMaterials(cost);
+    if (!spent.accepted) return spent;
+    const inserted = draft.insert(output);
+    if (!inserted.accepted) return inserted;
+    this.slots = draft.slots;
     return { accepted: true };
   }
 

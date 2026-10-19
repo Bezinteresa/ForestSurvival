@@ -8,6 +8,7 @@ export * from './resources';
 export * from './survival';
 export * from './campfire';
 export * from './time';
+export * from './crafting';
 
 export type EntityId = string;
 
@@ -60,6 +61,8 @@ export type SessionCommand = { readonly requestId: string } & (
   | { readonly type: 'gather'; readonly targetId: string }
   | { readonly type: 'fuel-fire'; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'upgrade-fire'; readonly expectedLevel: CampfireLevel }
+  | { readonly type: 'build-workbench' }
+  | { readonly type: 'craft-item'; readonly recipeId: string }
   | { readonly type: 'pickup'; readonly targetId: string }
   | { readonly type: 'interact' }
 );
@@ -67,7 +70,7 @@ export type SessionCommand = { readonly requestId: string } & (
 export interface CommandResult {
   readonly accepted: boolean;
   readonly duplicate?: boolean;
-  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale' | 'satiated' | 'dead' | 'fire-full' | 'wrong-fuel' | 'fire-out' | 'max-level' | 'insufficient-materials';
+  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale' | 'satiated' | 'dead' | 'fire-full' | 'wrong-fuel' | 'fire-out' | 'max-level' | 'insufficient-materials' | 'station-required' | 'station-level' | 'already-built';
 }
 
 export const SIMULATION_CONFIG = {

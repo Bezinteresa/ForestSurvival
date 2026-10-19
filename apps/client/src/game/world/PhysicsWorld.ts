@@ -1,5 +1,5 @@
 import type { Collider, KinematicCharacterController, RigidBody, World } from '@dimforge/rapier3d-compat';
-import { CAMPFIRE_CONFIG } from '@forest-survival/shared';
+import { CAMPFIRE_CONFIG, WORKBENCH_CONFIG } from '@forest-survival/shared';
 import { CAMP_STORAGE, INVENTORY_CONFIG, PLAYER_CONFIG, SIMULATION_CONFIG, TEST_WORLD, TEST_MATERIAL_NODES, TRAINING_DUMMY, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
 
 type Rapier = typeof import('@dimforge/rapier3d-compat')['default'];
@@ -30,6 +30,7 @@ export class PhysicsWorld {
   private verticalVelocity = 0;
   private grounded = false;
   private destroyed = false;
+  private workbenchBuilt = false;
 
   static async create(): Promise<PhysicsWorld> {
     const rapier = await loadRapier();
@@ -62,6 +63,9 @@ export class PhysicsWorld {
     this.entityColliders.set(storage.id, world.createCollider(rapier.ColliderDesc.cuboid(storage.halfSize.x, storage.halfSize.y, storage.halfSize.z).setTranslation(storage.position.x, storage.position.y, storage.position.z)));
     const fire = CAMPFIRE_CONFIG;
     this.entityColliders.set(fire.id, world.createCollider(rapier.ColliderDesc.cylinder(fire.baseHeight / 2, fire.radius).setTranslation(fire.position.x, fire.position.y + fire.baseHeight / 2, fire.position.z)));
+    // Register the blueprint as a sensor so construction can activate it without an extra physics step.
+    const bench = WORKBENCH_CONFIG;
+    this.entityColliders.set(bench.id, world.createCollider(rapier.ColliderDesc.cuboid(bench.halfSize.x, bench.halfSize.y, bench.halfSize.z).setTranslation(bench.position.x, bench.position.y, bench.position.z).setSensor(true)));
     const spawn = PLAYER_CONFIG.spawn;
     this.player = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y, spawn.z));
     this.playerCollider = world.createCollider(rapier.ColliderDesc.capsule(PLAYER_CONFIG.halfHeight, PLAYER_CONFIG.radius), this.player);
@@ -79,7 +83,7 @@ export class PhysicsWorld {
     if (!Number.isFinite(displacement.x) || !Number.isFinite(displacement.z)) throw new Error('Invalid displacement');
     if (jump && this.grounded) this.verticalVelocity = PLAYER_CONFIG.jumpSpeed;
     this.verticalVelocity = Math.max(-SIMULATION_CONFIG.terminalVelocity, this.verticalVelocity + SIMULATION_CONFIG.gravity * dt);
-    this.controller.computeColliderMovement(this.playerCollider, { x: displacement.x, y: this.verticalVelocity * dt, z: displacement.z });
+    this.controller.computeColliderMovement(this.playerCollider, { x: displacement.x, y: this.verticalVelocity * dt, z: displacement.z }, this.rapier.QueryFilterFlags.EXCLUDE_SENSORS);
     const movement = this.controller.computedMovement();
     const position = this.player.translation();
     this.player.setNextKinematicTranslation({ x: position.x + movement.x, y: position.y + movement.y, z: position.z + movement.z });
@@ -103,7 +107,7 @@ export class PhysicsWorld {
     if (distance < 0.001) return true;
     const ray = new this.rapier.Ray(from, { x: dx / distance, y: dy / distance, z: dz / distance });
     const ignored = targetId ? this.entityColliders.get(targetId) : undefined;
-    return !this.world.castRay(ray, Math.max(0, distance - 0.01), true, undefined, undefined, this.playerCollider, undefined, (collider) => collider.handle !== ignored?.handle);
+    return !this.world.castRay(ray, Math.max(0, distance - 0.01), true, this.rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, this.playerCollider, undefined, (collider) => collider.handle !== ignored?.handle);
   }
 
   removeEntityCollider(id: string): void {
@@ -114,13 +118,27 @@ export class PhysicsWorld {
     this.world.removeCollider(collider, false);
   }
 
+  canPlaceWorkbench(): boolean {
+    this.assertAlive();
+    const { id, position, halfSize } = WORKBENCH_CONFIG;
+    if (this.workbenchBuilt) return false;
+    return !this.world.intersectionWithShape(position, { x: 0, y: 0, z: 0, w: 1 }, new this.rapier.Cuboid(halfSize.x, halfSize.y, halfSize.z), undefined, undefined, this.entityColliders.get(id));
+  }
+
+  addWorkbenchCollider(): void {
+    this.assertAlive();
+    if (this.workbenchBuilt) return;
+    this.entityColliders.get(WORKBENCH_CONFIG.id)!.setSensor(false);
+    this.workbenchBuilt = true;
+  }
+
   findDropPosition(player: PlayerSnapshot, yaw: number): Vector3Data | null {
     this.assertAlive();
     if (!player.grounded || !Number.isFinite(yaw)) return null;
     const x = player.position.x + Math.sin(yaw) * INVENTORY_CONFIG.dropDistance;
     const z = player.position.z + Math.cos(yaw) * INVENTORY_CONFIG.dropDistance;
     const ray = new this.rapier.Ray({ x, y: player.position.y + 0.5, z }, { x: 0, y: -1, z: 0 });
-    const ground = this.world.castRayAndGetNormal(ray, 3, true, undefined, undefined, this.playerCollider);
+    const ground = this.world.castRayAndGetNormal(ray, 3, true, this.rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, this.playerCollider);
     if (!ground || ground.normal.y < 0.75) return null;
     const surfaceY = ray.origin.y - ground.timeOfImpact;
     const feetY = player.position.y - PLAYER_CONFIG.radius - PLAYER_CONFIG.halfHeight;
@@ -128,7 +146,7 @@ export class PhysicsWorld {
     const position = { x, y: surfaceY + INVENTORY_CONFIG.dropHeight, z };
     const origin = { ...player.position, y: player.position.y + 0.15 };
     if (!this.hasLineOfSight(origin, position)) return null;
-    const obstruction = this.world.intersectionWithShape(position, { x: 0, y: 0, z: 0, w: 1 }, new this.rapier.Cuboid(INVENTORY_CONFIG.dropHalfSize, 0.12, INVENTORY_CONFIG.dropHalfSize), undefined, undefined, this.playerCollider);
+    const obstruction = this.world.intersectionWithShape(position, { x: 0, y: 0, z: 0, w: 1 }, new this.rapier.Cuboid(INVENTORY_CONFIG.dropHalfSize, 0.12, INVENTORY_CONFIG.dropHalfSize), this.rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, this.playerCollider);
     return obstruction ? null : position;
   }
 

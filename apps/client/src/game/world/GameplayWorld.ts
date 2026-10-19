@@ -8,17 +8,23 @@ import { PlayerVitals } from '../player/PlayerVitals';
 import { ForagingWorld } from './ForagingWorld';
 import { CAMPFIRE_CONFIG, FUEL_DEFINITIONS, isFuel, type CampfireLevel } from '@forest-survival/shared';
 import { Campfire } from './Campfire';
+import { WORKBENCH_CONFIG } from '@forest-survival/shared';
+import { Workbench, type WorkbenchPlacement } from './Workbench';
 
 interface ResourceDefinition extends TreeDefinition { readonly kind: ResourceKind }
 
 export interface GameplayQueries extends VisibilityQueries {
   findDropPosition(player: PlayerSnapshot, yaw: number): Vector3Data | null;
+  canPlaceWorkbench?: WorkbenchPlacement['canPlaceWorkbench'];
+  addWorkbenchCollider?: WorkbenchPlacement['addWorkbenchCollider'];
 }
 
 export class GameplayWorld {
   private readonly attacks = new AttackController();
   private readonly storage = new CampStorage();
   private readonly campfire = new Campfire();
+  private readonly workbench = new Workbench();
+  private workbenchInReach = false;
   private campfireInReach = false;
   private lastPlayer: PlayerSnapshot = { id: PLAYER_CONFIG.id, position: { ...PLAYER_CONFIG.spawn }, grounded: false, yaw: Math.PI };
   private readonly foraging: ForagingWorld;
@@ -75,6 +81,34 @@ export class GameplayWorld {
     this.interaction = null;
     this.storageInReach = false;
     this.campfireInReach = false;
+    this.workbenchInReach = false;
+  }
+
+  buildWorkbench(player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    const site = WORKBENCH_CONFIG;
+    const lootInSite = [...this.loot.values()].some((item) => Math.abs(item.position.x - site.position.x) < site.halfSize.x + 0.3 && Math.abs(item.position.z - site.position.z) < site.halfSize.z + 0.3 && Math.abs(item.position.y - site.position.y) < site.halfSize.y + 0.3);
+    const result = this.workbench.build(this.inventory, player, this.visibility, {
+      canPlaceWorkbench: () => !lootInSite && !!this.visibility.addWorkbenchCollider && (this.visibility.canPlaceWorkbench?.() ?? false),
+      addWorkbenchCollider: () => this.visibility.addWorkbenchCollider!(),
+    });
+    if (result.accepted) this.updateInteraction(player, player.yaw);
+    return this.workbenchFeedback(result, now, 'Верстак построен. Открыты базовые рецепты.');
+  }
+
+  craftItem(recipeId: string, player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    return this.workbenchFeedback(this.workbench.craft(recipeId, this.inventory, player, this.visibility), now, 'Предмет изготовлен и помещён в рюкзак.');
+  }
+
+  private workbenchFeedback(result: CommandResult, now: number, success: string): CommandResult {
+    const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = {
+      'out-of-range': 'Подойдите к площадке верстака.', blocked: 'Освободите площадку и путь к верстаку.',
+      'insufficient-materials': 'Не хватает материалов в рюкзаке.', 'inventory-full': 'Нет места для результата. Материалы сохранены.',
+      'already-built': 'Верстак уже построен.', 'station-required': 'Сначала постройте верстак.', 'station-level': 'Нужен верстак более высокого уровня.',
+    };
+    this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted ? success : messages[result.reason!] ?? 'Рецепт недоступен.', at: now };
+    return result;
   }
 
   consumeFood(slot: number, expectedItemId: string, vitals: PlayerVitals, now: number): CommandResult {
@@ -198,6 +232,7 @@ export class GameplayWorld {
     }
     if (this.interaction?.kind === 'bush') return this.gather(this.interaction.id, player, now);
     if (this.interaction?.kind === 'storage') return { accepted: this.storage.canAccess(player, this.visibility) };
+    if (this.interaction?.kind === 'workbench') return this.attacks.isBusy(now) ? this.reject('busy', 'Дождитесь завершения удара.', now) : this.workbench.access(player, this.visibility);
     return this.interaction?.kind === 'pickup' ? this.pickup(this.interaction.id, player, now) : { accepted: false, reason: 'missing' };
   }
 
@@ -211,6 +246,7 @@ export class GameplayWorld {
       bag: { wood: this.inventory.count('wood'), capacity: this.inventory.capacityFor('wood') },
       bushes: this.foraging.snapshot(),
       campfire: this.campfire.snapshot(this.lastPlayer, this.campfireInReach),
+      workbench: this.workbench.snapshot(this.workbenchInReach),
       resources: this.resources.map(({ definition, receiver }) => ({ id: definition.id, kind: definition.kind, requiredTool: RESOURCE_DEFINITIONS[definition.kind].tool, position: { ...definition.position }, radius: definition.radius, trunkHeight: definition.trunkHeight, health: receiver.currentHealth, maxHealth: receiver.maxHealth, exhausted: receiver.exhausted })),
       loot: [...this.loot.values()].map((item) => ({ ...item, position: { ...item.position } })),
       dummy,
@@ -236,6 +272,7 @@ export class GameplayWorld {
     this.lastPlayer = { ...player, position: { ...player.position } };
     this.campfireInReach = this.campfire.access(player, this.visibility).accepted;
     this.storageInReach = this.storage.canAccess(player, this.visibility);
+    this.workbenchInReach = this.workbench.access(player, this.visibility).accepted;
     const item = selectTarget([...this.loot.values()].map((loot) => ({ id: loot.id, position: loot.position, radius: 0 })), origin, yaw, RESOURCE_CONFIG.pickupRange, Math.PI * 0.48, AXE_CONFIG.maxHeightDifference, this.visibility);
     if (item) {
       const stack = this.loot.get(item.id)!;
@@ -253,6 +290,11 @@ export class GameplayWorld {
     if (this.campfireInReach && selectTarget([{ id: fire.id, position: { ...fire.position, y: fire.position.y + fire.targetHeight }, radius: 0 }], origin, yaw, fire.range, AXE_CONFIG.halfAngle, 1.5, this.visibility)) {
       const snapshot = this.campfire.snapshot(player, true);
       this.interaction = { id: fire.id, kind: 'campfire', label: 'Костёр · ур. ' + snapshot.level + (snapshot.lit ? ' · ' + Math.ceil(snapshot.fuelSeconds) + ' с' : ' · потух') };
+      return;
+    }
+    const bench = WORKBENCH_CONFIG;
+    if (this.workbenchInReach && selectTarget([{ id: bench.id, position: bench.position, radius: 0 }], origin, yaw, bench.range, AXE_CONFIG.halfAngle, 1.5, this.visibility)) {
+      this.interaction = { id: bench.id, kind: 'workbench', label: this.workbench.snapshot(true).built ? 'Открыть верстак' : 'Построить верстак' };
       return;
     }
     const target = this.findStrikeTarget(player, yaw);

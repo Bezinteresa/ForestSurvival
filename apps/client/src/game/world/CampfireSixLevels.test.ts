@@ -4,7 +4,7 @@ import { Inventory } from '../items/Inventory';
 import { GameplayWorld } from './GameplayWorld';
 
 const player: PlayerSnapshot = { id: 'player', position: { x: 0, y: 0.92, z: 1.2 }, grounded: true, yaw: 0 };
-const queries = { hasLineOfSight: () => true, removeEntityCollider: () => {}, findDropPosition: () => null };
+const queries = { hasLineOfSight: () => true, removeEntityCollider: () => {}, findDropPosition: () => null, canPlaceWorkbench: () => true, addWorkbenchCollider: () => {} };
 
 describe('six-level campfire resource progression', () => {
   it('harvests the configured map with starter tools and buys all levels in a five-slot bag without debug', () => {
@@ -47,6 +47,19 @@ describe('six-level campfire resource progression', () => {
     for (const material of ['wood', 'stone', 'scrap', 'coal'] as ItemId[]) {
       expect(world.getSnapshot(now).loot.filter((drop) => drop.itemId === material).length).toBeGreaterThanOrEqual(3);
     }
+    const collect = (itemId: ItemId, amount: number) => {
+      const drops = world.getSnapshot(now).loot.filter((drop) => drop.itemId === itemId).slice(0, amount);
+      expect(drops).toHaveLength(amount);
+      for (const drop of drops) expect(world.pickup(drop.id, { ...player, position: { ...drop.position, y: 0.92 } }, now).accepted).toBe(true);
+    };
+    const builder = { ...player, position: { x: 0.6, y: 0.92, z: -3 } };
+    collect('wood', 3); collect('stone', 1);
+    expect(world.buildWorkbench(builder, now).accepted).toBe(true);
+    collect('wood', 1); collect('stone', 1);
+    expect(world.craftItem('basic-axe', builder, now).accepted).toBe(true);
+    collect('wood', 1); collect('scrap', 1);
+    expect(world.craftItem('basic-pickaxe', builder, now).accepted).toBe(true);
+    expect(world.getSnapshot(now).workbench).toMatchObject({ built: true, level: 1 });
     expect(world.isWarm({ x: 14.99, y: 0.92, z: 2.8 })).toBe(true);
     expect(world.isWarm({ x: 15.01, y: 0.92, z: 2.8 })).toBe(false);
     world.step(60);

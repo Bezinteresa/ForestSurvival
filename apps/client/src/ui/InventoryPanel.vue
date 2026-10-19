@@ -2,9 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
 import { ITEM_DEFINITIONS, isTool, isFood, itemLabel, type CampfireLevel, type GameplaySnapshot, type InventorySnapshot } from '@forest-survival/shared';
 import CampfirePanel from './CampfirePanel.vue';
+import WorkbenchPanel from './WorkbenchPanel.vue';
 
-const props = defineProps<{ inventory: InventorySnapshot; storage: GameplaySnapshot['storage']; campfire: GameplaySnapshot['campfire']; debugTools: boolean; note: string }>();
-const emit = defineEmits<{ close: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; consumeItem: [slot: number]; fuelFire: [slot: number]; upgradeFire: [expectedLevel: CampfireLevel]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
+const props = defineProps<{ inventory: InventorySnapshot; storage: GameplaySnapshot['storage']; campfire: GameplaySnapshot['campfire']; workbench: GameplaySnapshot['workbench']; debugTools: boolean; note: string }>();
+const emit = defineEmits<{ close: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; consumeItem: [slot: number]; fuelFire: [slot: number]; upgradeFire: [expectedLevel: CampfireLevel]; buildWorkbench: []; craftItem: [recipeId: string]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
 const dialog = useTemplateRef<HTMLDialogElement>('dialog');
 const selected = ref(props.inventory.activeSlot);
 const selectedStorage = ref(0);
@@ -46,6 +47,7 @@ onBeforeUnmount(() => dialog.value?.close());
       <button v-else class="button secondary" @click="movingFrom = null">Отменить перенос</button>
     </div>
     <CampfirePanel :campfire="campfire" :inventory="inventory" :selected="stack" :moving="movingFrom !== null" @fuel="emit('fuelFire', selected)" @upgrade="emit('upgradeFire', $event)" />
+    <WorkbenchPanel :workbench="workbench" :inventory="inventory" :moving="movingFrom !== null" @build="emit('buildWorkbench')" @craft="emit('craftItem', $event)" />
     <section class="storage-section" aria-labelledby="storage-title">
       <h3 id="storage-title">Склад лагеря · {{ storage.inventory.slots.filter(Boolean).length }} / {{ storage.inventory.slots.length }} слотов</h3>
       <template v-if="storage.inReach">

@@ -42,8 +42,8 @@ const materials = computed(() => {
   return totals;
 });
 const ended = computed(() => snapshot.value?.status === 'ended');
-const interactionLabel = computed(() => { const kind = gameplay.value?.interaction?.kind; return kind === 'storage' ? 'Склад' : kind === 'bush' ? 'Собрать' : kind === 'campfire' ? 'Топливо' : 'Взять'; });
-const canInteract = computed(() => ['pickup', 'storage', 'bush', 'campfire'].includes(gameplay.value?.interaction?.kind ?? ''));
+const interactionLabel = computed(() => { const kind = gameplay.value?.interaction?.kind; return kind === 'workbench' ? 'Верстак' : kind === 'storage' ? 'Склад' : kind === 'bush' ? 'Собрать' : kind === 'campfire' ? 'Топливо' : 'Взять'; });
+const canInteract = computed(() => ['pickup', 'storage', 'bush', 'campfire', 'workbench'].includes(gameplay.value?.interaction?.kind ?? ''));
 const foodInHand = computed(() => { const inventory = gameplay.value?.inventory; const stack = inventory?.slots[inventory.activeSlot]; return !!stack && isFood(stack.itemId); });
 const canPlay = computed(() => active.value && !paused.value && !ended.value);
 const paused = computed(() => snapshot.value?.status === 'paused');
@@ -143,6 +143,9 @@ function reportInventory(result?: CommandResult): void {
     'fire-out': 'Сначала разожгите костёр.',
     'max-level': 'Достигнут максимальный уровень костра.',
     'insufficient-materials': 'Не хватает материалов в рюкзаке.',
+    'station-required': 'Сначала постройте верстак.',
+    'station-level': 'Нужен верстак более высокого уровня.',
+    'already-built': 'Верстак уже построен.',
   };
   inventoryNote.value = result?.accepted ? 'Готово.' : result?.reason ? messages[result.reason] ?? 'Операция недоступна.' : 'Операция недоступна.';
 }
@@ -177,6 +180,16 @@ function upgradeFire(expectedLevel: CampfireLevel): void {
   if (result?.reason === 'blocked') inventoryNote.value = 'Костёр закрыт препятствием.';
   if (result?.reason === 'out-of-range') inventoryNote.value = 'Подойдите к костру.';
   if (result?.reason === 'stale') inventoryNote.value = 'Уровень костра изменился. Проверьте новое улучшение.';
+}
+function buildWorkbench(): void {
+  const result = game?.sendCommand({ type: 'build-workbench', requestId: 'ui-' + (++requestNumber) });
+  reportInventory(result);
+  if (result?.reason === 'blocked') inventoryNote.value = 'Освободите площадку и путь к верстаку.';
+}
+function craftItem(recipeId: string): void {
+  const result = game?.sendCommand({ type: 'craft-item', recipeId, requestId: 'ui-' + (++requestNumber) });
+  reportInventory(result);
+  if (result?.reason === 'blocked') inventoryNote.value = 'Верстак закрыт препятствием.';
 }
 function debugUpgrade(target: 'tool' | 'backpack', slot: number): void { reportInventory(game?.sendCommand({ type: 'debug-upgrade', target, slot, level: 2, requestId: 'ui-' + (++requestNumber) })); }
 
@@ -218,7 +231,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
     <div v-if="canPlay && !inventoryOpen && gameplay?.interaction" class="target-hint">
       <strong>{{ gameplay.interaction.label }}</strong>
       <template v-if="gameplay.interaction.health !== undefined"><span>{{ gameplay.interaction.health }} / {{ gameplay.interaction.maxHealth }}</span><progress :value="gameplay.interaction.health" :max="gameplay.interaction.maxHealth" /></template>
-      <span>{{ gameplay.interaction.kind === 'campfire' ? 'E / «Топливо» · 1 древесина' : gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : gameplay.interaction.kind === 'bush' ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
+      <span>{{ gameplay.interaction.kind === 'workbench' ? 'E / кнопка «Верстак»' : gameplay.interaction.kind === 'campfire' ? 'E / «Топливо» · древесина или уголь' : gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : gameplay.interaction.kind === 'bush' ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
     </div>
     <p v-if="canPlay && feedback" class="game-feedback" role="status">{{ feedback }}</p>
     <div v-if="canPlay && !inventoryOpen && gameplay" class="equipment-bar" data-ui>
@@ -226,7 +239,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
       <progress v-if="gameplay.attack.phase !== 'idle'" :value="gameplay.attack.progress" max="1" aria-label="Восстановление после удара" />
     </div>
     <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="canInteract" :interaction-label="interactionLabel" :primary-label="foodInHand ? 'Есть' : 'Удар'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
-    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
+    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :workbench="gameplay.workbench" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @build-workbench="buildWorkbench" @craft-item="craftItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
     <PlayerStatus v-if="canPlay && snapshot" :vitals="snapshot.vitals" />
     <RunResult v-if="ended && snapshot" :vitals="snapshot.vitals" :clock="snapshot.clock" :elapsed="elapsed" @restart="start" @leave="stop" />
     <div v-if="active && paused" class="pause-backdrop" />

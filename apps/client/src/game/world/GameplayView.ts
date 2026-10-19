@@ -3,9 +3,12 @@ import { CAMP_STORAGE, TEST_MATERIAL_NODES, TEST_BERRY_BUSHES, TRAINING_DUMMY, i
 import type { GameFrame } from '../core/GameView';
 import { CAMPFIRE_CONFIG } from '@forest-survival/shared';
 import { CampfireView } from './CampfireView';
+import { WorkbenchView } from './WorkbenchView';
+import { WORKBENCH_CONFIG } from '@forest-survival/shared';
 
 export class GameplayView {
   private readonly campfire: CampfireView;
+  private readonly workbench: WorkbenchView;
   private readonly axe = new THREE.Group();
   private readonly firstPersonAxe = new THREE.Group();
   private readonly dummy = new THREE.Group();
@@ -23,6 +26,7 @@ export class GameplayView {
     private readonly cameraObstacles: THREE.Object3D[],
   ) {
     this.campfire = new CampfireView(scene, cameraObstacles);
+    this.workbench = new WorkbenchView(scene, cameraObstacles);
     this.buildAxe(this.axe);
     this.axe.position.set(0.52, -0.05, 0.15);
     player.add(this.axe);
@@ -140,6 +144,7 @@ export class GameplayView {
 
     const selected = gameplay.interaction;
     this.campfire.update(gameplay.campfire);
+    this.workbench.update(gameplay.workbench);
     this.selection.visible = !!selected;
     if (selected?.kind === 'tree' || selected?.kind === 'resource') {
       const resource = gameplay.resources.find((entry) => entry.id === selected.id);
@@ -150,6 +155,9 @@ export class GameplayView {
     } else if (selected?.kind === 'campfire') {
       const fire = CAMPFIRE_CONFIG;
       this.selection.box.setFromCenterAndSize(new THREE.Vector3(fire.position.x, fire.position.y + 0.6, fire.position.z), new THREE.Vector3(fire.radius * 2, 1.2, fire.radius * 2));
+    } else if (selected?.kind === 'workbench') {
+      const { position, halfSize } = WORKBENCH_CONFIG;
+      this.selection.box.setFromCenterAndSize(new THREE.Vector3(position.x, position.y, position.z), new THREE.Vector3(halfSize.x * 2, halfSize.y * 2, halfSize.z * 2));
     } else if (selected?.kind === 'storage') {
       this.selection.box.setFromCenterAndSize(new THREE.Vector3(CAMP_STORAGE.position.x, CAMP_STORAGE.position.y, CAMP_STORAGE.position.z), new THREE.Vector3(1.3, 1.1, 0.9));
     } else if (selected?.kind === 'dummy') {
