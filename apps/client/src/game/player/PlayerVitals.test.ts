@@ -23,6 +23,48 @@ describe('health and hunger rules', () => {
     expect(crossing.snapshot().health).toBe(95);
   });
 
+  it('changes hunger rate only for the supplied sprinting steps', () => {
+    const vitals = new PlayerVitals();
+    vitals.step(4, 4);
+    expect(vitals.snapshot().hunger).toBe(99);
+    vitals.step(4, 8, true);
+    expect(vitals.snapshot().hunger).toBe(97);
+    vitals.step(4, 12, false);
+    expect(vitals.snapshot()).toMatchObject({ hunger: 96, health: 100 });
+  });
+
+  it('uses the sprint rate to find the starving portion and accepts food afterwards', () => {
+    const boundary = new PlayerVitals({ hunger: 0.5 });
+    boundary.step(1, 1, true);
+    expect(boundary.snapshot()).toMatchObject({ hunger: 0, health: 100 });
+    const crossing = new PlayerVitals({ hunger: 0.25 });
+    crossing.step(1, 1, true);
+    expect(crossing.snapshot()).toMatchObject({ hunger: 0, health: 97.5 });
+    expect(crossing.eat(25)).toBe(true);
+    crossing.step(1, 2);
+    expect(crossing.snapshot()).toMatchObject({ hunger: 24.75, health: 97.5 });
+  });
+
+  it('records the exact death within a sprinting step and remains terminal', () => {
+    const vitals = new PlayerVitals({ health: 2.5, hunger: 0.25 });
+    vitals.step(3, 3, true);
+    const dead = vitals.snapshot();
+    expect(dead).toMatchObject({ hunger: 0, health: 0, deathAt: 1, deathReason: 'starvation' });
+    vitals.step(1, 4, false);
+    expect(vitals.eat(25)).toBe(false);
+    expect(vitals.snapshot()).toEqual(dead);
+  });
+
+  it.each([30, 60, 144])('keeps continuous-sprint starvation at 200 s and death at 220 s at %i update FPS', (fps) => {
+    const vitals = new PlayerVitals();
+    for (let frame = 1; frame <= 205 * fps; frame++) vitals.step(1 / fps, frame / fps, true);
+    expect(vitals.snapshot().health).toBeCloseTo(75, 5);
+    expect(vitals.snapshot().hunger).toBe(0);
+    for (let frame = 205 * fps + 1; frame <= 221 * fps; frame++) vitals.step(1 / fps, frame / fps, true);
+    expect(vitals.snapshot()).toMatchObject({ health: 0, dead: true, deathReason: 'starvation' });
+    expect(vitals.snapshot().deathAt).toBeCloseTo(220, 5);
+  });
+
   it.each([30, 60, 144])('has the same hunger and death time at %i update FPS', (fps) => {
     const vitals = new PlayerVitals();
     for (let frame = 1; frame <= 410 * fps; frame++) vitals.step(1 / fps, frame / fps);

@@ -21,10 +21,11 @@ export class PlayerVitals {
     return true;
   }
 
-  step(dt: number, now: number): void {
+  step(dt: number, now: number, sprinting = false): void {
     if (this.dead || !Number.isFinite(dt) || dt <= 0 || !Number.isFinite(now) || now < dt) return;
-    const untilEmpty = this.hunger / SURVIVAL_CONFIG.hungerPerSecond;
-    this.hunger = Math.max(0, this.hunger - dt * SURVIVAL_CONFIG.hungerPerSecond);
+    const hungerPerSecond = SURVIVAL_CONFIG.hungerPerSecond * (sprinting ? SURVIVAL_CONFIG.sprintHungerMultiplier : 1);
+    const untilEmpty = this.hunger / hungerPerSecond;
+    this.hunger = Math.max(0, this.hunger - dt * hungerPerSecond);
     if (this.hunger < EPSILON) this.hunger = 0;
     const starvingFor = Math.max(0, dt - untilEmpty);
     if (starvingFor <= 0) return;

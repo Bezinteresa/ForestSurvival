@@ -1,4 +1,4 @@
-import { NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, isFood, TEST_MATERIAL_NODES, TEST_WORLD, type PlayerControlFrame, type CommandResult, type PlayerSnapshot, type SessionCommand, type SessionSnapshot, type SessionStatus, type Vector3Data } from '@forest-survival/shared';
+import { NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, SURVIVAL_CONFIG, isFood, TEST_MATERIAL_NODES, TEST_WORLD, type PlayerControlFrame, type CommandResult, type PlayerSnapshot, type SessionCommand, type SessionSnapshot, type SessionStatus, type Vector3Data } from '@forest-survival/shared';
 import { buildPlayerMotion } from '../player/PlayerMotor';
 import { PlayerVitals } from '../player/PlayerVitals';
 import { GameplayWorld } from '../world/GameplayWorld';
@@ -53,7 +53,9 @@ export class LocalSession implements GameSession {
     this.simulationTime += dt;
     this.clock.update(this.simulationTime);
     this.gameplay.step(dt);
-    this.vitals.step(dt, this.simulationTime);
+    const horizontalDistance = Math.hypot(this.currentPlayer.position.x - this.previousPlayer.position.x, this.currentPlayer.position.z - this.previousPlayer.position.z);
+    const sprinting = input.sprint && (motion.displacement.x !== 0 || motion.displacement.z !== 0) && horizontalDistance > SURVIVAL_CONFIG.minSprintMovementSpeed * dt;
+    this.vitals.step(dt, this.simulationTime, sprinting);
     if (this.vitals.dead) {
       this.gameplay.end();
       this.status = 'ended';

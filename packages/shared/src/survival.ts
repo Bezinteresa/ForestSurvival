@@ -1,7 +1,14 @@
 import type { FoodId } from './items';
 import type { Vector3Data } from './index';
 
-export const SURVIVAL_CONFIG = { maxHealth: 100, maxHunger: 100, hungerPerSecond: 0.25, starvationDamagePerSecond: 5 } as const;
+export const SURVIVAL_CONFIG = {
+  maxHealth: 100,
+  maxHunger: 100,
+  hungerPerSecond: 0.25,
+  sprintHungerMultiplier: 2,
+  minSprintMovementSpeed: 0.1, // Metres/second; ignore contact jitter after collision resolution.
+  starvationDamagePerSecond: 5,
+} as const;
 export const FOOD_DEFINITIONS = { berries: { hunger: 25 } } as const satisfies Record<FoodId, { hunger: number }>;
 
 export interface VitalsSnapshot {
