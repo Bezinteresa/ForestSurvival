@@ -1,4 +1,4 @@
-import type { FoodId } from './items';
+import type { ConsumableId, ItemId } from './items';
 import type { Vector3Data } from './index';
 
 export const SURVIVAL_CONFIG = {
@@ -11,7 +11,38 @@ export const SURVIVAL_CONFIG = {
   coldGraceSeconds: 10,
   coldDamagePerSecond: 1,
 } as const;
-export const FOOD_DEFINITIONS = { berries: { hunger: 25 } } as const satisfies Record<FoodId, { hunger: number }>;
+/**
+ * One use applies every listed effect at once; each is capped by the current maximum.
+ * Raw food feeds less than cooked; cooked meat is the hot food that both feeds and heals.
+ */
+export const CONSUMABLE_DEFINITIONS = {
+  berries: { hunger: 25, health: 0 },
+  'raw-meat': { hunger: 10, health: 0 },
+  'cooked-meat': { hunger: 35, health: 15 },
+  bandage: { hunger: 0, health: 25 },
+  medkit: { hunger: 0, health: 60 },
+} as const satisfies Record<ConsumableId, { hunger: number; health: number }>;
+
+/** Cooking happens on a lit campfire, one item at a time; progress advances only while it burns. */
+export const COOKING_RECIPES = {
+  'raw-meat': { output: 'cooked-meat', seconds: 12 },
+} as const satisfies Partial<Record<ItemId, { output: ItemId; seconds: number }>>;
+export type CookableId = keyof typeof COOKING_RECIPES;
+export function isCookable(itemId: ItemId): itemId is CookableId { return Object.hasOwn(COOKING_RECIPES, itemId); }
+
+export interface CookingSnapshot {
+  readonly inputItemId: CookableId;
+  readonly outputItemId: ItemId;
+  readonly progressSeconds: number;
+  readonly durationSeconds: number;
+  readonly ready: boolean;
+}
+
+/** Found supplies until exploration containers exist (T050+). Positions are fixed so a run is reproducible. */
+export const TEST_SUPPLIES: ReadonlyArray<{ readonly id: string; readonly itemId: ConsumableId; readonly amount: number; readonly position: Vector3Data }> = [
+  { id: 'supply-bandage-01', itemId: 'bandage', amount: 2, position: { x: 8.5, y: 0.23, z: -8.5 } },
+  { id: 'supply-medkit-01', itemId: 'medkit', amount: 1, position: { x: -10.5, y: 0.23, z: 15 } },
+];
 
 export interface VitalsSnapshot {
   readonly health: number;

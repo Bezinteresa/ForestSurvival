@@ -2,7 +2,7 @@ import { InputState } from '../input/InputState';
 import { BrowserInput, type ControlStatus } from '../input/BrowserInput';
 import { DEFAULT_CONTROL_SETTINGS, sanitizeControlSettings, type ControlSettings } from '../input/ControlSettings';
 import { CameraController } from '../player/CameraController';
-import { DIAGNOSTIC_SPEEDS, type CommandResult, type SessionCommand, type SessionSnapshot, type SimulationSpeed } from '@forest-survival/shared';
+import { DIAGNOSTIC_SPEEDS, TEST_SUPPLIES, type CommandResult, type SessionCommand, type SessionSnapshot, type SimulationSpeed } from '@forest-survival/shared';
 import type { InputAction } from '../input/InputState';
 import { LocalSession } from '../session/LocalSession';
 import { SceneView } from '../world/SceneView';
@@ -23,7 +23,7 @@ export class Game {
   private readonly cleanups: Array<() => void> = [];
 
   static async create(host: HTMLElement, onSnapshot: (snapshot: SessionSnapshot) => void, onError: (error: unknown) => void, signal: AbortSignal, controls?: { settings: ControlSettings; onStatus: (status: ControlStatus) => void; onInventoryChange?: (open: boolean) => void }): Promise<Game> {
-    const session = await LocalSession.create({ debugTools: import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEBUG_TOOLS === 'true' });
+    const session = await LocalSession.create({ debugTools: import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEBUG_TOOLS === 'true', supplies: TEST_SUPPLIES });
     if (signal.aborted) {
       session.destroy();
       throw new DOMException('Запуск отменён', 'AbortError');

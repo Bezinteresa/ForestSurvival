@@ -1,4 +1,4 @@
-import { AXE_CONFIG, CAMP_STORAGE, FOOD_DEFINITIONS, TEST_BERRY_BUSHES, isFood, ITEM_DEFINITIONS, PLAYER_CONFIG, RESOURCE_DEFINITIONS, TOOL_DAMAGE, TOOL_LEVELS, RESOURCE_CONFIG, TEST_WORLD, TRAINING_DUMMY, type CommandResult, type DummySnapshot, type GameplaySnapshot, type InteractionSnapshot, type LootSnapshot, type PlayerSnapshot, type TreeDefinition, type Vector3Data, type MaterialNodeDefinition, type ResourceKind, type ToolId, type BerryBushDefinition } from '@forest-survival/shared';
+import { AXE_CONFIG, CAMP_STORAGE, CONSUMABLE_DEFINITIONS, COOKING_RECIPES, TEST_BERRY_BUSHES, isConsumable, isCookable, isMedical, ITEM_DEFINITIONS, PLAYER_CONFIG, RESOURCE_DEFINITIONS, TOOL_DAMAGE, TOOL_LEVELS, RESOURCE_CONFIG, TEST_WORLD, TRAINING_DUMMY, type CommandResult, type DummySnapshot, type GameplaySnapshot, type InteractionSnapshot, type LootSnapshot, type PlayerSnapshot, type TreeDefinition, type Vector3Data, type MaterialNodeDefinition, type ResourceKind, type ToolId, type BerryBushDefinition, type ItemStack } from '@forest-survival/shared';
 import { AttackController } from '../combat/AttackController';
 import { DamageReceiver } from '../combat/DamageReceiver';
 import { selectTarget, type TargetPoint, type VisibilityQueries } from '../combat/TargetQuery';
@@ -37,13 +37,14 @@ export class GameplayWorld {
   private lastHit: GameplaySnapshot['lastHit'] = null;
   private interaction: InteractionSnapshot | null = null;
 
-  constructor(private readonly visibility: GameplayQueries, trees: readonly TreeDefinition[] = TEST_WORLD.trees, private readonly inventory = new Inventory(), nodes: readonly MaterialNodeDefinition[] = [], private readonly debugTools = false, bushes: readonly BerryBushDefinition[] = TEST_BERRY_BUSHES) {
+  constructor(private readonly visibility: GameplayQueries, trees: readonly TreeDefinition[] = TEST_WORLD.trees, private readonly inventory = new Inventory(), nodes: readonly MaterialNodeDefinition[] = [], private readonly debugTools = false, bushes: readonly BerryBushDefinition[] = TEST_BERRY_BUSHES, supplies: ReadonlyArray<ItemStack & { readonly position: Vector3Data }> = []) {
     this.foraging = new ForagingWorld(bushes);
+    for (const supply of supplies) this.loot.set(supply.id, { ...supply, position: { ...supply.position } });
     const definitions: ResourceDefinition[] = [
       ...trees.map((tree) => ({ ...tree, kind: 'tree' as const })),
       ...nodes.map((node) => ({ ...node, trunkHeight: node.height })),
     ];
-    this.resources = definitions.map((definition) => ({ definition, receiver: new DamageReceiver(definition.id, RESOURCE_DEFINITIONS[definition.kind].health, RESOURCE_DEFINITIONS[definition.kind].tool) }));
+    this.resources = definitions.map((definition) => ({ definition, receiver: new DamageReceiver(definition.id, RESOURCE_DEFINITIONS[definition.kind].health, RESOURCE_DEFINITIONS[definition.kind].tool ?? undefined) }));
   }
 
   getSelectedItem() { return this.inventory.getStack(this.inventory.selectedSlot); }
@@ -118,19 +119,50 @@ export class GameplayWorld {
     return result;
   }
 
-  consumeFood(slot: number, expectedItemId: string, vitals: PlayerVitals, now: number): CommandResult {
+  consumeItem(slot: number, expectedItemId: string, vitals: PlayerVitals, now: number): CommandResult {
     if (vitals.dead) return { accepted: false, reason: 'dead' };
     if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
     const stack = this.inventory.getStack(slot);
     if (!stack || stack.id !== expectedItemId) return { accepted: false, reason: 'stale' };
-    if (!isFood(stack.itemId)) return { accepted: false, reason: 'invalid' };
-    const food = FOOD_DEFINITIONS[stack.itemId];
-    if (!vitals.canEat(food.hunger)) return this.reject('satiated', 'Вы уже сыты.', now);
+    if (!isConsumable(stack.itemId)) return { accepted: false, reason: 'invalid' };
+    const effect = CONSUMABLE_DEFINITIONS[stack.itemId];
+    const blocker = vitals.consumeBlocker(effect);
+    if (blocker === 'satiated') return this.reject('satiated', effect.health > 0 ? 'Вы сыты и здоровы.' : 'Вы уже сыты.', now);
+    if (blocker === 'full-health') return this.reject('full-health', 'Здоровье уже полное.', now);
+    if (blocker) return { accepted: false, reason: blocker };
+    const before = vitals.snapshot();
+    // The item is spent first; vitals.consume cannot fail after the blocker check above.
     const consumed = this.inventory.consume(slot, expectedItemId);
     if (!consumed.accepted) return consumed;
-    vitals.eat(food.hunger);
-    this.feedback = { kind: 'info', text: 'Ягоды съедены.', at: now };
+    vitals.consume(effect);
+    const after = vitals.snapshot();
+    const gains = [after.hunger > before.hunger ? 'сытость +' + Math.round(after.hunger - before.hunger) : '', after.health > before.health ? 'здоровье +' + Math.round(after.health - before.health) : ''].filter(Boolean).join(', ');
+    this.feedback = { kind: 'info', text: (isMedical(stack.itemId) ? 'Использовано: ' : 'Съедено: ') + ITEM_DEFINITIONS[stack.itemId].label + ' · ' + gains, at: now };
     return { accepted: true };
+  }
+
+  cookItem(slot: number, expectedItemId: string, player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    const stack = this.inventory.getStack(slot);
+    const result = this.campfire.startCooking(this.inventory, slot, expectedItemId, player, this.visibility);
+    const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = {
+      'out-of-range': 'Подойдите к костру.', blocked: 'Костёр закрыт препятствием.', stale: 'Слот изменился. Выберите продукт заново.',
+      'not-cookable': 'Этот предмет нельзя приготовить.', 'fire-out': 'Сначала разожгите костёр.', 'cooking-busy': 'На костре уже готовится еда.',
+    };
+    const recipe = stack && isCookable(stack.itemId) ? COOKING_RECIPES[stack.itemId] : null;
+    this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted && recipe ? 'Готовится: ' + ITEM_DEFINITIONS[recipe.output].label + ' · ' + recipe.seconds + ' с горения' : messages[result.reason!] ?? 'Не удалось начать готовку.', at: now };
+    return result;
+  }
+
+  collectCooked(player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    const output = this.campfire.snapshot(player, false).cooking?.outputItemId;
+    const result = this.campfire.collectCooked(this.inventory, player, this.visibility);
+    const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = {
+      'out-of-range': 'Подойдите к костру.', blocked: 'Костёр закрыт препятствием.', 'nothing-cooked': 'Еда ещё не готова.', 'inventory-full': 'Нет места в рюкзаке. Еда остаётся на костре.',
+    };
+    this.feedback = { kind: result.accepted ? 'pickup' : 'blocked', text: result.accepted && output ? '+1 · ' + ITEM_DEFINITIONS[output].label : messages[result.reason!] ?? 'Не удалось забрать еду.', at: now };
+    return result;
   }
 
   gather(id: string, player: PlayerSnapshot, now: number): CommandResult {
@@ -200,7 +232,8 @@ export class GameplayWorld {
         const receiver = resource?.receiver ?? this.dummy;
         const attack = this.attackTool!;
         const result = receiver.receiveDamage({ attackId: strike.id, sourceId: PLAYER_CONFIG.id, targetId: target.id, kind: 'melee', amount: attack.damage, tool: attack.tool });
-        if (!result.applied && resource && RESOURCE_DEFINITIONS[resource.definition.kind].tool !== attack.tool) this.feedback = { kind: 'blocked', text: 'Нужен инструмент: ' + ITEM_DEFINITIONS[RESOURCE_DEFINITIONS[resource.definition.kind].tool].label, at: now };
+        const requiredTool = resource ? RESOURCE_DEFINITIONS[resource.definition.kind].tool : null;
+        if (!result.applied && requiredTool && requiredTool !== attack.tool) this.feedback = { kind: 'blocked', text: 'Нужен инструмент: ' + ITEM_DEFINITIONS[requiredTool].label, at: now };
         if (result.applied) {
           this.lastHit = { targetId: target.id, at: now };
           this.feedback = { kind: 'hit', text: (resource ? RESOURCE_DEFINITIONS[resource.definition.kind].label : 'Манекен') + ': −' + attack.damage, at: now };
@@ -208,7 +241,7 @@ export class GameplayWorld {
             this.visibility.removeEntityCollider(target.id);
             if (resource) {
               this.spawnMaterials(resource.definition);
-              this.feedback = { kind: 'info', text: RESOURCE_DEFINITIONS[resource.definition.kind].label + ': ресурс исчерпан. Подберите добычу.', at: now };
+              this.feedback = { kind: 'info', text: resource.definition.kind === 'hare' ? 'Заяц добыт. Подберите мясо.' : RESOURCE_DEFINITIONS[resource.definition.kind].label + ': ресурс исчерпан. Подберите добычу.', at: now };
             } else this.feedback = { kind: 'info', text: 'Манекен уничтожен.', at: now };
           }
         }
@@ -234,7 +267,10 @@ export class GameplayWorld {
   interact(player: PlayerSnapshot, now: number, viewYaw: number): CommandResult {
     this.updateInteraction(player, viewYaw);
     if (this.interaction?.kind === 'campfire') {
+      // Ready food is collected first; otherwise the selected item decides between cooking and fuel.
+      if (this.campfire.cookedReady) return this.collectCooked(player, now);
       const stack = this.getSelectedItem();
+      if (stack && isCookable(stack.itemId)) return this.cookItem(this.inventory.selectedSlot, stack.id, player, now);
       return stack ? this.fuelFire(this.inventory.selectedSlot, stack.id, player, now) : this.reject('wrong-fuel', 'Выберите древесину или уголь.', now);
     }
     if (this.interaction?.kind === 'bush') return this.gather(this.interaction.id, player, now);
@@ -296,7 +332,9 @@ export class GameplayWorld {
     const fire = CAMPFIRE_CONFIG;
     if (this.campfireInReach && selectTarget([{ id: fire.id, position: { ...fire.position, y: fire.position.y + fire.targetHeight }, radius: 0 }], origin, yaw, fire.range, AXE_CONFIG.halfAngle, 1.5, this.visibility)) {
       const snapshot = this.campfire.snapshot(player, true);
-      this.interaction = { id: fire.id, kind: 'campfire', label: 'Костёр · ур. ' + snapshot.level + (snapshot.lit ? ' · ' + Math.ceil(snapshot.fuelSeconds) + ' с' : ' · потух') };
+      const cooking = snapshot.cooking;
+      const cookingLabel = !cooking ? '' : cooking.ready ? ' · готово: ' + ITEM_DEFINITIONS[cooking.outputItemId].label : ' · жарится ' + Math.ceil(cooking.durationSeconds - cooking.progressSeconds) + ' с';
+      this.interaction = { id: fire.id, kind: 'campfire', label: 'Костёр · ур. ' + snapshot.level + (snapshot.lit ? ' · ' + Math.ceil(snapshot.fuelSeconds) + ' с' : ' · потух') + cookingLabel };
       return;
     }
     const bench = WORKBENCH_CONFIG;

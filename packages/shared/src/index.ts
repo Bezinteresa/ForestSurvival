@@ -61,6 +61,8 @@ export type SessionCommand = { readonly requestId: string } & (
   | { readonly type: 'consume-item'; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'gather'; readonly targetId: string }
   | { readonly type: 'fuel-fire'; readonly slot: number; readonly expectedItemId: string }
+  | { readonly type: 'cook-item'; readonly slot: number; readonly expectedItemId: string }
+  | { readonly type: 'collect-cooked' }
   | { readonly type: 'upgrade-fire'; readonly expectedLevel: CampfireLevel }
   | { readonly type: 'build-workbench' }
   | { readonly type: 'upgrade-workbench'; readonly expectedLevel: WorkbenchLevel }
@@ -72,7 +74,7 @@ export type SessionCommand = { readonly requestId: string } & (
 export interface CommandResult {
   readonly accepted: boolean;
   readonly duplicate?: boolean;
-  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale' | 'satiated' | 'dead' | 'fire-full' | 'wrong-fuel' | 'fire-out' | 'max-level' | 'insufficient-materials' | 'station-required' | 'station-level' | 'already-built';
+  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale' | 'satiated' | 'dead' | 'fire-full' | 'wrong-fuel' | 'fire-out' | 'max-level' | 'insufficient-materials' | 'station-required' | 'station-level' | 'already-built' | 'full-health' | 'not-cookable' | 'cooking-busy' | 'nothing-cooked';
 }
 
 export const SIMULATION_CONFIG = {

@@ -41,12 +41,12 @@ describe('foraging and consuming food', () => {
     const bag = new Inventory(5, [[0, { id: 'food', itemId: 'berries', amount: 2 }], [1, { id: 'axe', itemId: 'axe', amount: 1 }]]);
     const world = new GameplayWorld(queries(), [], bag, [], false, [bush]);
     const vitals = new PlayerVitals({ hunger: 90, health: 40 });
-    expect(world.consumeFood(0, 'old-id', vitals, 0).reason).toBe('stale');
-    expect(world.consumeFood(1, 'axe', vitals, 0).reason).toBe('invalid');
-    expect(world.consumeFood(0, 'food', vitals, 0).accepted).toBe(true);
+    expect(world.consumeItem(0, 'old-id', vitals, 0).reason).toBe('stale');
+    expect(world.consumeItem(1, 'axe', vitals, 0).reason).toBe('invalid');
+    expect(world.consumeItem(0, 'food', vitals, 0).accepted).toBe(true);
     expect(bag.getStack(0)?.amount).toBe(1);
     expect(vitals.snapshot()).toMatchObject({ hunger: 100, health: 40 });
-    expect(world.consumeFood(0, 'food', vitals, 0).reason).toBe('satiated');
+    expect(world.consumeItem(0, 'food', vitals, 0).reason).toBe('satiated');
     expect(bag.getStack(0)?.amount).toBe(1);
   });
 
@@ -56,14 +56,14 @@ describe('foraging and consuming food', () => {
     const world = new GameplayWorld(queries(), [tree], bag);
     const vitals = new PlayerVitals({ hunger: 50 });
     world.useItem('hit', 0, 0);
-    expect(world.consumeFood(1, 'food', vitals, 0.1).reason).toBe('busy');
+    expect(world.consumeItem(1, 'food', vitals, 0.1).reason).toBe('busy');
     expect(bag.getStack(1)?.amount).toBe(1);
     world.end();
     world.update(0.3, player, 0);
     expect(world.getSnapshot(0.3).resources[0]?.health).toBe(100);
     expect(world.getSnapshot(0.3).attack.phase).toBe('idle');
     vitals.takeDamage(1000, 1);
-    expect(world.consumeFood(1, 'food', vitals, 1).reason).toBe('dead');
+    expect(world.consumeItem(1, 'food', vitals, 1).reason).toBe('dead');
     expect(bag.getStack(1)?.amount).toBe(1);
   });
 });

@@ -1,13 +1,15 @@
-import type { ToolId, MaterialId } from './items';
+import type { ToolId, ItemId } from './items';
 import type { Vector3Data } from './index';
 
-export type ResourceKind = 'tree' | 'rock' | 'scrap-pile' | 'coal-vein';
+export type ResourceKind = 'tree' | 'rock' | 'scrap-pile' | 'coal-vein' | 'hare';
 export const RESOURCE_DEFINITIONS = {
   tree: { label: 'Дерево', health: 100, tool: 'axe', output: 'wood', amount: 3 },
   rock: { label: 'Каменная жила', health: 90, tool: 'pickaxe', output: 'stone', amount: 3 },
   'scrap-pile': { label: 'Завал металлолома', health: 60, tool: 'pickaxe', output: 'scrap', amount: 2 },
   'coal-vein': { label: 'Угольная жила', health: 90, tool: 'pickaxe', output: 'coal', amount: 3 },
-} as const satisfies Record<ResourceKind, { label: string; health: number; tool: ToolId; output: MaterialId; amount: number }>;
+  // Stationary placeholder game until animal AI arrives with the mob stages; any tool can hunt it.
+  hare: { label: 'Заяц', health: 25, tool: null, output: 'raw-meat', amount: 2 },
+} as const satisfies Record<ResourceKind, { label: string; health: number; tool: ToolId | null; output: ItemId; amount: number }>;
 
 export interface MaterialNodeDefinition {
   readonly id: string;
@@ -39,6 +41,9 @@ export const TEST_MATERIAL_NODES: readonly MaterialNodeDefinition[] = [
   { id: 'scrap-10', kind: 'scrap-pile', position: { x: 16, y: 0, z: 16 }, radius: 0.7, height: 1.2 },
   { id: 'scrap-11', kind: 'scrap-pile', position: { x: -17, y: 0, z: 8 }, radius: 0.7, height: 1.2 },
   { id: 'scrap-12', kind: 'scrap-pile', position: { x: 17, y: 0, z: -11 }, radius: 0.7, height: 1.2 },
+  { id: 'hare-01', kind: 'hare', position: { x: -11, y: 0, z: 1 }, radius: 0.3, height: 0.45 },
+  { id: 'hare-02', kind: 'hare', position: { x: 11, y: 0, z: -1 }, radius: 0.3, height: 0.45 },
+  { id: 'hare-03', kind: 'hare', position: { x: -4, y: 0, z: -10 }, radius: 0.3, height: 0.45 },
 ];
 
 export const CAMP_STORAGE = { id: 'camp-storage', position: { x: -1.5, y: 0.5, z: -2 }, halfSize: { x: 0.6, y: 0.5, z: 0.4 }, range: 2.6, slots: 8 } as const;

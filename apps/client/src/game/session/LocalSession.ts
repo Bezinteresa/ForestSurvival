@@ -1,4 +1,4 @@
-import { NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, SURVIVAL_CONFIG, isFood, TEST_MATERIAL_NODES, TEST_WORLD, type PlayerControlFrame, type CommandResult, type PlayerSnapshot, type SessionCommand, type SessionSnapshot, type SessionStatus, type Vector3Data } from '@forest-survival/shared';
+import { NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, SURVIVAL_CONFIG, isConsumable, TEST_BERRY_BUSHES, TEST_MATERIAL_NODES, TEST_SUPPLIES, TEST_WORLD, type PlayerControlFrame, type CommandResult, type PlayerSnapshot, type SessionCommand, type SessionSnapshot, type SessionStatus, type Vector3Data } from '@forest-survival/shared';
 import { buildPlayerMotion } from '../player/PlayerMotor';
 import { PlayerVitals } from '../player/PlayerVitals';
 import { GameplayWorld } from '../world/GameplayWorld';
@@ -20,14 +20,15 @@ export class LocalSession implements GameSession {
   private viewYaw = Math.PI;
   private destroyed = false;
 
-  static async create(options: { debugTools?: boolean } = {}): Promise<LocalSession> {
-    return new LocalSession(await PhysicsWorld.create(), options.debugTools ?? false);
+  /** supplies: found items placed on the map at start; the client passes TEST_SUPPLIES, scenario tests may omit them. */
+  static async create(options: { debugTools?: boolean; supplies?: typeof TEST_SUPPLIES } = {}): Promise<LocalSession> {
+    return new LocalSession(await PhysicsWorld.create(), options.debugTools ?? false, options.supplies ?? []);
   }
 
-  private constructor(private readonly physics: PhysicsWorld, debugTools: boolean) {
+  private constructor(private readonly physics: PhysicsWorld, debugTools: boolean, supplies: typeof TEST_SUPPLIES) {
     this.currentPlayer = { ...physics.getPlayerSnapshot(), yaw: Math.PI };
     this.previousPlayer = this.currentPlayer;
-    this.gameplay = new GameplayWorld(physics, TEST_WORLD.trees, undefined, TEST_MATERIAL_NODES, debugTools);
+    this.gameplay = new GameplayWorld(physics, TEST_WORLD.trees, undefined, TEST_MATERIAL_NODES, debugTools, TEST_BERRY_BUSHES, supplies);
     this.gameplay.update(0, this.currentPlayer, this.viewYaw);
   }
 
@@ -110,18 +111,20 @@ export class LocalSession implements GameSession {
       case 'use-item': {
         if (!Number.isFinite(command.yaw)) { result = { accepted: false, reason: 'invalid' }; break; }
         const selected = this.gameplay.getSelectedItem();
-        if (selected && isFood(selected.itemId)) {
+        if (selected && isConsumable(selected.itemId)) {
           const slot = this.gameplay.getSnapshot(this.simulationTime).inventory.activeSlot;
-          result = this.gameplay.consumeFood(slot, selected.id, this.vitals, this.simulationTime);
+          result = this.gameplay.consumeItem(slot, selected.id, this.vitals, this.simulationTime);
         } else {
           result = this.gameplay.useItem(command.requestId, command.yaw, this.simulationTime);
           if (result.accepted) this.currentPlayer = { ...this.currentPlayer, yaw: command.yaw };
         }
         break;
       }
-      case 'consume-item': result = this.gameplay.consumeFood(command.slot, command.expectedItemId, this.vitals, this.simulationTime); break;
+      case 'consume-item': result = this.gameplay.consumeItem(command.slot, command.expectedItemId, this.vitals, this.simulationTime); break;
       case 'gather': result = this.gameplay.gather(command.targetId, this.currentPlayer, this.simulationTime); break;
       case 'fuel-fire': result = this.gameplay.fuelFire(command.slot, command.expectedItemId, this.currentPlayer, this.simulationTime); break;
+      case 'cook-item': result = this.gameplay.cookItem(command.slot, command.expectedItemId, this.currentPlayer, this.simulationTime); break;
+      case 'collect-cooked': result = this.gameplay.collectCooked(this.currentPlayer, this.simulationTime); break;
       case 'upgrade-fire': result = this.gameplay.upgradeFire(command.expectedLevel, this.currentPlayer, this.simulationTime); break;
       case 'build-workbench': result = this.gameplay.buildWorkbench(this.currentPlayer, this.simulationTime); break;
       case 'upgrade-workbench': result = this.gameplay.upgradeWorkbench(command.expectedLevel, this.currentPlayer, this.simulationTime); break;

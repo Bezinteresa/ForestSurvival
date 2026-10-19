@@ -1,5 +1,6 @@
 import type { Vector3Data } from './index';
 import type { FuelId, MaterialCost } from './items';
+import type { CookingSnapshot } from './survival';
 
 export const FUEL_DEFINITIONS = { wood: { seconds: 30 }, coal: { seconds: 60 } } as const satisfies Record<FuelId, { seconds: number }>;
 
@@ -57,4 +58,6 @@ export interface CampfireSnapshot {
   readonly safeRadius: number;
   readonly playerInside: boolean;
   readonly inReach: boolean;
+  /** The single cooking spot over the fire; null when empty. */
+  readonly cooking: CookingSnapshot | null;
 }

@@ -2,8 +2,11 @@ export type ToolId = 'axe' | 'pickaxe';
 export type MaterialId = 'wood' | 'stone' | 'scrap' | 'coal';
 export type FuelId = 'wood' | 'coal';
 export type MaterialCost = Readonly<Partial<Record<MaterialId, number>>>;
-export type FoodId = 'berries';
-export type ItemId = ToolId | MaterialId | FoodId;
+export type FoodId = 'berries' | 'raw-meat' | 'cooked-meat';
+export type MedicalId = 'bandage' | 'medkit';
+/** Items spent from a slot to apply hunger and/or health effects. */
+export type ConsumableId = FoodId | MedicalId;
+export type ItemId = ToolId | MaterialId | ConsumableId;
 export type UpgradeLevel = 1 | 2;
 
 export const ITEM_DEFINITIONS = {
@@ -14,10 +17,16 @@ export const ITEM_DEFINITIONS = {
   scrap: { label: 'Металлолом', stackLimit: 3 },
   coal: { label: 'Уголь', stackLimit: 3 },
   berries: { label: 'Ягоды', stackLimit: 5 },
+  'raw-meat': { label: 'Сырое мясо', stackLimit: 5 },
+  'cooked-meat': { label: 'Жареное мясо', stackLimit: 5 },
+  bandage: { label: 'Бинт', stackLimit: 3 },
+  medkit: { label: 'Аптечка', stackLimit: 1 },
 } as const satisfies Record<ItemId, { label: string; stackLimit: number }>;
 
 export function isTool(itemId: ItemId): itemId is ToolId { return itemId === 'axe' || itemId === 'pickaxe'; }
-export function isFood(itemId: ItemId): itemId is FoodId { return itemId === 'berries'; }
+export function isFood(itemId: ItemId): itemId is FoodId { return itemId === 'berries' || itemId === 'raw-meat' || itemId === 'cooked-meat'; }
+export function isMedical(itemId: ItemId): itemId is MedicalId { return itemId === 'bandage' || itemId === 'medkit'; }
+export function isConsumable(itemId: ItemId): itemId is ConsumableId { return isFood(itemId) || isMedical(itemId); }
 export function isFuel(itemId: ItemId): itemId is FuelId { return itemId === 'wood' || itemId === 'coal'; }
 export function itemLabel(stack: ItemStack): string { return ITEM_DEFINITIONS[stack.itemId].label + (isTool(stack.itemId) ? ' · ур. ' + (stack.level ?? 1) : ''); }
 

@@ -1,5 +1,7 @@
 import { SURVIVAL_CONFIG, type VitalsSnapshot } from '@forest-survival/shared';
 
+export interface ConsumableEffect { readonly hunger: number; readonly health: number }
+
 const EPSILON = 1e-9;
 export class PlayerVitals {
   private health: number;
@@ -20,6 +22,24 @@ export class PlayerVitals {
   eat(amount: number): boolean {
     if (!this.canEat(amount)) return false;
     this.hunger = Math.min(SURVIVAL_CONFIG.maxHunger, this.hunger + amount);
+    return true;
+  }
+
+  /** Why a consumable would be wasted, or null when at least one of its effects applies. */
+  consumeBlocker(effect: ConsumableEffect): 'dead' | 'satiated' | 'full-health' | 'invalid' | null {
+    if (this.dead) return 'dead';
+    const hunger = Number.isFinite(effect.hunger) ? Math.max(0, effect.hunger) : -1;
+    const health = Number.isFinite(effect.health) ? Math.max(0, effect.health) : -1;
+    if (hunger < 0 || health < 0 || hunger + health === 0) return 'invalid';
+    if ((hunger > 0 && this.hunger < SURVIVAL_CONFIG.maxHunger) || (health > 0 && this.health < SURVIVAL_CONFIG.maxHealth)) return null;
+    return hunger > 0 ? 'satiated' : 'full-health';
+  }
+
+  /** Applies hunger and healing together; each is capped by its current maximum. */
+  consume(effect: ConsumableEffect): boolean {
+    if (this.consumeBlocker(effect) !== null) return false;
+    this.hunger = Math.min(SURVIVAL_CONFIG.maxHunger, this.hunger + effect.hunger);
+    this.health = Math.min(SURVIVAL_CONFIG.maxHealth, this.health + effect.health);
     return true;
   }
 

@@ -19,7 +19,8 @@ export interface DamageInfo {
 
 export interface ResourceSnapshot {
   readonly kind: ResourceKind;
-  readonly requiredTool: ToolId;
+  /** null: any tool works (game animals). */
+  readonly requiredTool: ToolId | null;
   readonly id: EntityId;
   readonly position: Vector3Data;
   readonly radius: number;

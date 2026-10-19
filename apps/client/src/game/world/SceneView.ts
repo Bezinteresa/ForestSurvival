@@ -68,7 +68,8 @@ export class SceneView implements GameView {
       if (Math.hypot(dx, dy, dz) < 0.001) this.camera.lookAt(position.x + Math.sin(frame.camera.yaw), position.y - Math.tan(frame.camera.pitch), position.z - Math.cos(frame.camera.yaw));
       else this.camera.lookAt(placement.target.x, placement.target.y, placement.target.z);
     }
-    this.player.visible = !frame.camera.firstPerson && this.camera.position.distanceTo(this.player.position) > 0.9;
+    // A camera pushed against an obstacle shows the view as from the eyes instead of a head filling the screen.
+    this.player.visible = !frame.camera.firstPerson && this.camera.position.distanceTo(this.player.position) > 1.4;
     this.debugLines.visible = !!frame.debugGeometry;
     if (frame.debugGeometry) {
       const vertices = frame.debugGeometry.vertices;
@@ -152,8 +153,8 @@ export class SceneView implements GameView {
       group.add(trunk, crown, upperCrown);
       this.scene.add(group);
       this.trees.set(tree.id, group);
-      // Foliage does not push the camera: near a trunk the camera ray would hit the crown and collapse into the player's head.
-      this.cameraObstacles.push(trunk);
+      // The raised crown blocks the camera like any obstacle; standing at the trunk no longer puts the camera ray inside it.
+      this.cameraObstacles.push(trunk, crown, upperCrown);
     }
     this.player.name = 'local-player';
     const body = this.mesh(new THREE.BoxGeometry(0.64, 0.72, 0.38), 0xc99e4d);

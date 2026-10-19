@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef } from 'vue';
-import { DIAGNOSTIC_SPEEDS, itemLabel, isFood, type CampfireLevel, type WorkbenchLevel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
+import { DIAGNOSTIC_SPEEDS, itemLabel, isConsumable, isCookable, isMedical, type CampfireLevel, type WorkbenchLevel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
 import type { Game } from './game/core/Game';
 import type { InputState } from './game/input/InputState';
 import type { ControlStatus } from './game/input/BrowserInput';
@@ -42,9 +42,11 @@ const materials = computed(() => {
   return totals;
 });
 const ended = computed(() => snapshot.value?.status === 'ended');
-const interactionLabel = computed(() => { const kind = gameplay.value?.interaction?.kind; return kind === 'workbench' ? 'Верстак' : kind === 'storage' ? 'Склад' : kind === 'bush' ? 'Собрать' : kind === 'campfire' ? 'Топливо' : 'Взять'; });
+const interactionLabel = computed(() => { const kind = gameplay.value?.interaction?.kind; return kind === 'workbench' ? 'Верстак' : kind === 'storage' ? 'Склад' : kind === 'bush' ? 'Собрать' : kind === 'campfire' ? campfireAction.value : 'Взять'; });
+const selectedStack = computed(() => { const inventory = gameplay.value?.inventory; return inventory?.slots[inventory.activeSlot] ?? null; });
+const campfireAction = computed(() => gameplay.value?.campfire.cooking?.ready ? 'Забрать' : selectedStack.value && isCookable(selectedStack.value.itemId) ? 'Жарить' : 'Топливо');
 const canInteract = computed(() => ['pickup', 'storage', 'bush', 'campfire', 'workbench'].includes(gameplay.value?.interaction?.kind ?? ''));
-const foodInHand = computed(() => { const inventory = gameplay.value?.inventory; const stack = inventory?.slots[inventory.activeSlot]; return !!stack && isFood(stack.itemId); });
+const primaryLabel = computed(() => { const stack = selectedStack.value; return !stack || !isConsumable(stack.itemId) ? 'Удар' : isMedical(stack.itemId) ? 'Лечить' : 'Есть'; });
 const canPlay = computed(() => active.value && !paused.value && !ended.value);
 const paused = computed(() => snapshot.value?.status === 'paused');
 const elapsed = computed(() => {
@@ -136,7 +138,11 @@ function reportInventory(result?: CommandResult): void {
     'out-of-range': 'Подойдите ближе к месту взаимодействия.',
     stale: 'Слот изменился. Выберите предмет заново.',
     forbidden: 'Режим разработки отключён.',
-    satiated: 'Вы уже сыты. Еда сохранена.',
+    satiated: 'Эффект не нужен: вы сыты. Предмет сохранён.',
+    'full-health': 'Здоровье уже полное. Предмет сохранён.',
+    'not-cookable': 'Этот предмет нельзя приготовить.',
+    'cooking-busy': 'На костре уже готовится еда.',
+    'nothing-cooked': 'Еда ещё не готова.',
     dead: 'Забег завершён.',
     'fire-full': 'Нет места для всей порции топлива. Древесина сохранена.',
     'wrong-fuel': 'Для костра нужна древесина.',
@@ -166,6 +172,11 @@ function consumeItem(slot: number): void {
   const stack = gameplay.value?.inventory.slots[slot];
   if (stack) reportInventory(game?.sendCommand({ type: 'consume-item', slot, expectedItemId: stack.id, requestId: 'ui-' + (++requestNumber) }));
 }
+function cookItem(slot: number): void {
+  const stack = gameplay.value?.inventory.slots[slot];
+  if (stack) reportInventory(game?.sendCommand({ type: 'cook-item', slot, expectedItemId: stack.id, requestId: 'ui-' + (++requestNumber) }));
+}
+function collectCooked(): void { reportInventory(game?.sendCommand({ type: 'collect-cooked', requestId: 'ui-' + (++requestNumber) })); }
 function fuelFire(slot: number): void {
   const stack = gameplay.value?.inventory.slots[slot];
   if (!stack) return;
@@ -237,15 +248,15 @@ onBeforeUnmount(() => { disposed = true; stop(); });
     <div v-if="canPlay && !inventoryOpen && gameplay?.interaction" class="target-hint">
       <strong>{{ gameplay.interaction.label }}</strong>
       <template v-if="gameplay.interaction.health !== undefined"><span>{{ gameplay.interaction.health }} / {{ gameplay.interaction.maxHealth }}</span><progress :value="gameplay.interaction.health" :max="gameplay.interaction.maxHealth" /></template>
-      <span>{{ gameplay.interaction.kind === 'workbench' ? 'E / кнопка «Верстак»' : gameplay.interaction.kind === 'campfire' ? 'E / «Топливо» · древесина или уголь' : gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : gameplay.interaction.kind === 'bush' ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
+      <span>{{ gameplay.interaction.kind === 'workbench' ? 'E / кнопка «Верстак»' : gameplay.interaction.kind === 'campfire' ? (campfireAction === 'Топливо' ? 'E / «Топливо» · древесина или уголь' : 'E / «' + campfireAction + '»') : gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : gameplay.interaction.kind === 'bush' ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
     </div>
     <p v-if="canPlay && feedback" class="game-feedback" role="status">{{ feedback }}</p>
     <div v-if="canPlay && !inventoryOpen && gameplay" class="equipment-bar" data-ui>
       <button v-for="(item, slot) in gameplay.inventory.slots.slice(0, 5)" :key="slot" :class="{ selected: gameplay.inventory.activeSlot === slot }" :aria-pressed="gameplay.inventory.activeSlot === slot" @pointerdown.prevent @click="selectSlot(slot)"><span>{{ slot + 1 }}</span><strong>{{ item ? itemLabel(item) : 'Пусто' }}</strong><span v-if="item">×{{ item.amount }}</span></button>
       <progress v-if="gameplay.attack.phase !== 'idle'" :value="gameplay.attack.progress" max="1" aria-label="Восстановление после удара" />
     </div>
-    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="canInteract" :interaction-label="interactionLabel" :primary-label="foodInHand ? 'Есть' : 'Удар'" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
-    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :workbench="gameplay.workbench" :focus-workbench="gameplay.interaction?.kind === 'workbench'" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @build-workbench="buildWorkbench" @upgrade-workbench="upgradeWorkbench" @craft-item="craftItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
+    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="canInteract" :interaction-label="interactionLabel" :primary-label="primaryLabel" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
+    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :workbench="gameplay.workbench" :focus-workbench="gameplay.interaction?.kind === 'workbench'" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @cook-item="cookItem" @collect-cooked="collectCooked" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @build-workbench="buildWorkbench" @upgrade-workbench="upgradeWorkbench" @craft-item="craftItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
     <PlayerStatus v-if="canPlay && snapshot" :vitals="snapshot.vitals" />
     <RunResult v-if="ended && snapshot" :vitals="snapshot.vitals" :clock="snapshot.clock" :elapsed="elapsed" @restart="start" @leave="stop" />
     <div v-if="active && paused" class="pause-backdrop" />

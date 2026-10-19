@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMP_STORAGE, TEST_MATERIAL_NODES, TEST_BERRY_BUSHES, TRAINING_DUMMY, isTool, type ToolId, type MaterialId, type FoodId } from '@forest-survival/shared';
+import { CAMP_STORAGE, TEST_MATERIAL_NODES, TEST_BERRY_BUSHES, TRAINING_DUMMY, isTool, type ToolId, type ItemId } from '@forest-survival/shared';
 import type { GameFrame } from '../core/GameView';
 import { CAMPFIRE_CONFIG } from '@forest-survival/shared';
 import { CampfireView } from './CampfireView';
@@ -16,7 +16,7 @@ export class GameplayView {
   private readonly bushes = new Map<string, THREE.Group>();
   private readonly lootMeshes = new Map<string, THREE.Object3D>();
   private lootGeometry: THREE.BoxGeometry | undefined;
-  private readonly lootMaterials = new Map<MaterialId | FoodId, THREE.MeshStandardMaterial>();
+  private readonly lootMaterials = new Map<ItemId, THREE.MeshStandardMaterial>();
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -48,6 +48,24 @@ export class GameplayView {
     for (const node of TEST_MATERIAL_NODES) {
       const group = new THREE.Group();
       group.position.set(node.position.x, node.position.y, node.position.z);
+      if (node.kind === 'hare') {
+        // Primitive stand-in; small enough that it does not push the camera.
+        const fur = new THREE.MeshStandardMaterial({ color: 0xb8a58a, roughness: 1 });
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.26, 0.5), fur);
+        body.position.y = 0.15;
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), fur);
+        head.position.set(0, 0.3, 0.28);
+        group.add(body, head);
+        for (const x of [-0.05, 0.05]) {
+          const ear = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.05), fur);
+          ear.position.set(x, 0.48, 0.26);
+          group.add(ear);
+        }
+        group.rotation.y = node.position.x * 0.7;
+        scene.add(group);
+        this.trees.set(node.id, group);
+        continue;
+      }
       const geometry = node.kind === 'scrap-pile' ? new THREE.BoxGeometry(1.4, 2, 1.1) : new THREE.DodecahedronGeometry(1, 0);
       const body = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: node.kind === 'coal-vein' ? 0x414953 : node.kind === 'rock' ? 0x7c8588 : 0x8d6250, roughness: 0.9, metalness: node.kind === 'scrap-pile' ? 0.4 : 0 }));
       body.scale.set(node.radius, node.height / 2, node.radius);
@@ -129,7 +147,7 @@ export class GameplayView {
           this.lootGeometry ??= new THREE.BoxGeometry(0.55, 0.22, 0.28);
           let material = this.lootMaterials.get(item.itemId);
           if (!material) {
-            material = new THREE.MeshStandardMaterial({ color: { wood: 0xc69d60, stone: 0x9aa5aa, scrap: 0xb7785b, coal: 0x414953, berries: 0xc34562 }[item.itemId], roughness: 1 });
+            material = new THREE.MeshStandardMaterial({ color: { wood: 0xc69d60, stone: 0x9aa5aa, scrap: 0xb7785b, coal: 0x414953, berries: 0xc34562, 'raw-meat': 0xd9787a, 'cooked-meat': 0x8a4b2a, bandage: 0xf1ece0, medkit: 0xd23c3c }[item.itemId], roughness: 1 });
             this.lootMaterials.set(item.itemId, material);
           }
           mesh = new THREE.Mesh(this.lootGeometry, material);
