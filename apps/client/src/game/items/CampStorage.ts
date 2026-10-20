@@ -3,13 +3,13 @@ import type { VisibilityQueries } from '../combat/TargetQuery';
 import { Inventory } from './Inventory';
 
 export class CampStorage {
-  constructor(private readonly inventory = new Inventory(CAMP_STORAGE.slots, [[0, { id: 'starter-pickaxe', itemId: 'pickaxe', amount: 1 }]])) {}
+  constructor(private readonly inventory = new Inventory(CAMP_STORAGE.slots, [[0, { id: 'starter-pickaxe', itemId: 'pickaxe', amount: 1 }]]), readonly definition: { readonly id: string; readonly position: { readonly x: number; readonly y: number; readonly z: number }; readonly range: number } = CAMP_STORAGE) {}
 
   canAccess(player: PlayerSnapshot, visibility: VisibilityQueries): boolean {
-    const position = CAMP_STORAGE.position;
-    return Math.hypot(player.position.x - position.x, player.position.z - position.z) <= CAMP_STORAGE.range
+    const position = this.definition.position;
+    return Math.hypot(player.position.x - position.x, player.position.z - position.z) <= this.definition.range
       && Math.abs(player.position.y - position.y) <= 1.5
-      && visibility.hasLineOfSight(player.position, position, CAMP_STORAGE.id);
+      && visibility.hasLineOfSight(player.position, position, this.definition.id);
   }
 
   snapshot() { return this.inventory.snapshot(); }

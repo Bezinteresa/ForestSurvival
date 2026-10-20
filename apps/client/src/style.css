@@ -173,3 +173,12 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 /* Landscape phones have no room for both counters and vitals on the left; the hotbar already shows stack amounts. */
 @media (any-pointer: coarse) and (max-height: 560px) { .resource-count { display: none; } .game-feedback { top: 116px; } }
 @media (any-pointer: coarse) and (max-height: 560px) { .player-status { bottom: 140px; width: 230px; } .player-status strong { margin-top: 1px; } .player-status progress { margin-top: 3px; } }
+
+.camp-build-panel { position: fixed; z-index: 12; top: 85px; right: 18px; width: min(390px, calc(100vw - 36px)); max-height: calc(100svh - 105px); overflow: auto; padding: 18px; border: 1px solid #71816a; border-radius: 14px; background: #14231bf5; color: #eff4e9; pointer-events: auto; }
+.camp-build-map { display: block; width: 100%; max-height: 200px; background: #0c1b13; border-radius: 10px; }
+.camp-build-map text { font-size: 0.8px; fill: #eff4e9; pointer-events: none; }
+.camp-build-map g { cursor: pointer; }
+.camp-build-panel .inventory-heading h2 { font-size: 20px; }
+@media (max-height: 500px) { .camp-build-panel { top: 58px; max-height: calc(100svh - 70px); } .camp-build-map { max-height: 110px; } }
+
+.camp-build-map g text { fill: #0a160e; }

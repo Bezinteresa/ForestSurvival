@@ -3,6 +3,7 @@ import type { VitalsSnapshot } from './survival';
 import type { CampfireLevel } from './campfire';
 import type { WorldClockSnapshot } from './time';
 import type { WorkbenchLevel } from './crafting';
+import type { BuildingPlan } from './building';
 export * from './gameplay';
 export * from './items';
 export * from './resources';
@@ -10,6 +11,7 @@ export * from './survival';
 export * from './campfire';
 export * from './time';
 export * from './crafting';
+export * from './building';
 
 export type EntityId = string;
 
@@ -56,7 +58,8 @@ export type SessionCommand = { readonly requestId: string } & (
   | { readonly type: 'select-slot'; readonly slot: number }
   | { readonly type: 'move-item'; readonly from: number; readonly to: number }
   | { readonly type: 'drop-item'; readonly slot: number; readonly yaw: number }
-  | { readonly type: 'transfer-item'; readonly direction: 'deposit' | 'withdraw'; readonly slot: number; readonly expectedItemId: string }
+  | { readonly type: 'transfer-item'; readonly direction: 'deposit' | 'withdraw'; readonly slot: number; readonly expectedItemId: string; readonly storageId?: string }
+  | { readonly type: 'place-building'; readonly plan: BuildingPlan }
   | { readonly type: 'debug-upgrade'; readonly target: 'tool' | 'backpack'; readonly slot: number; readonly level: 2 }
   | { readonly type: 'consume-item'; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'gather'; readonly targetId: string }

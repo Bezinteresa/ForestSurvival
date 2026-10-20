@@ -1,6 +1,7 @@
 import type { BerryBushSnapshot } from './survival';
 import type { CampfireSnapshot } from './campfire';
 import type { WorkbenchSnapshot } from './crafting';
+import type { BuildingSnapshot } from './building';
 import type { EntityId, Vector3Data } from './index';
 import { TOOL_DAMAGE, TOOL_LEVELS, type InventorySnapshot, type ItemStack, type ToolId } from './items';
 
@@ -52,7 +53,8 @@ export interface InteractionSnapshot {
 
 export interface GameplaySnapshot {
   readonly inventory: InventorySnapshot;
-  readonly storage: { readonly inventory: InventorySnapshot; readonly inReach: boolean };
+  readonly storage: { readonly id: string; readonly inventory: InventorySnapshot; readonly inReach: boolean };
+  readonly buildings: readonly BuildingSnapshot[];
   readonly debugTools: boolean;
   readonly equippedItem: EquippedItemId;
   readonly bag: { readonly wood: number; readonly capacity: number };

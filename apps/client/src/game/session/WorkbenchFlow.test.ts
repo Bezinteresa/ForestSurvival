@@ -55,6 +55,55 @@ async function gather() {
 }
 
 describe('ordinary workbench session with Rapier', () => {
+  it('gathers a working storage and barricade, transfers through the addressed crate and rejects duplicate placement', async () => {
+    const session = await gather();
+    expect(send(session, { type: 'build-workbench' }).accepted).toBe(true);
+    walk(session, 0, 0); walk(session, -1.5, 5); walk(session, -8.5, 6.5);
+    harvest(session, 'tree-04'); walk(session, -9.6, 7); pickup(session, 'tree-04');
+    walk(session, -9, 0); harvest(session, 'scrap-02'); walk(session, -9, -2); pickup(session, 'scrap-02');
+    walk(session, -8, -3); walk(session, -3, -1); walk(session, -2, 3.1);
+    const plan = { kind: 'storage' as const, siteId: 'plot-1', rotation: 0 as const };
+    const before = session.getSnapshot();
+    expect(session.previewBuilding(plan).result.accepted).toBe(true);
+    expect(session.getSnapshot().gameplay.inventory).toEqual(before.gameplay.inventory);
+    const build = { type: 'place-building' as const, plan, requestId: 'new-storage' };
+    expect(session.sendCommand(build).accepted).toBe(true);
+    expect(session.sendCommand(build)).toMatchObject({ accepted: true, duplicate: true });
+    expect(send(session, { type: 'place-building', plan: { ...plan, rotation: 1 } }).reason).toBe('already-built');
+    expect(session.getSnapshot().simulationTime).toBe(before.simulationTime);
+    expect(session.getSnapshot().gameplay.campfire).toEqual(before.gameplay.campfire);
+    session.step(1 / 60, { ...NEUTRAL_PLAYER_INPUT, cameraYaw: Math.PI });
+    expect(session.getSnapshot().gameplay.interaction?.kind).toBe('storage');
+    expect(send(session, { type: 'interact' }).accepted).toBe(true);
+    const storageId = session.getSnapshot().gameplay.storage.id;
+    expect(storageId).toBe('build/plot-1/storage/0');
+    expect(session.getSnapshot().gameplay.storage.inventory.slots.filter(Boolean)).toHaveLength(0);
+    const axeSlot = session.getSnapshot().gameplay.inventory.slots.findIndex((stack) => stack?.id === 'starter-axe');
+    const deposit = { type: 'transfer-item' as const, direction: 'deposit' as const, slot: axeSlot, expectedItemId: 'starter-axe', storageId, requestId: 'built-deposit' };
+    expect(session.sendCommand(deposit).accepted).toBe(true);
+    expect(session.sendCommand(deposit).duplicate).toBe(true);
+    const sourceSlot = session.getSnapshot().gameplay.storage.inventory.slots.findIndex((stack) => stack?.id === 'starter-axe');
+    expect(send(session, { type: 'transfer-item', direction: 'withdraw', slot: sourceSlot, expectedItemId: 'starter-axe' }).reason).toBe('out-of-range');
+    expect(send(session, { type: 'transfer-item', direction: 'withdraw', slot: sourceSlot, expectedItemId: 'starter-axe', storageId }).accepted).toBe(true);
+    walk(session, -3, -1); walk(session, -8, -3); walk(session, -8, -6.4);
+    harvest(session, 'tree-03'); walk(session, -8, -7.8); pickup(session, 'tree-03');
+    walk(session, -8, -3); walk(session, 0.6, -3);
+    expect(send(session, { type: 'upgrade-workbench', expectedLevel: 1 }).accepted).toBe(true);
+    walk(session, -11.4, -3); harvest(session, 'tree-07'); walk(session, -12.6, -3); pickup(session, 'tree-07', 1);
+    walk(session, -8, -3); walk(session, 0.6, -3); walk(session, 1.8, 0); walk(session, 2, 2.8); walk(session, 1, 5);
+    const barricade = { kind: 'barricade' as const, siteId: 'plot-2', rotation: 0 as const };
+    expect(send(session, { type: 'place-building', plan: barricade }).accepted).toBe(true);
+    expect(session.getSnapshot().gameplay.buildings).toHaveLength(2);
+    expect(session.sendCommand({ type: 'use-item', yaw: 0, requestId: 'busy-build' }).accepted).toBe(true);
+    expect(session.previewBuilding({ ...barricade, siteId: 'plot-3' }).result.reason).toBe('busy');
+    session.pause();
+    expect(send(session, { type: 'place-building', plan: barricade }).reason).toBe('paused');
+    session.sendCommand({ type: 'reset-player', requestId: 'keep-buildings' });
+    expect(session.getSnapshot().gameplay.buildings).toHaveLength(2);
+    session.destroy(); expect(() => session.getSnapshot()).not.toThrow();
+    const fresh = await setup(); expect(fresh.getSnapshot().gameplay.buildings).toEqual([]);
+  });
+
   it('gathers and buys both station levels and the backpack without debug, preserves identity and protects repeated commands', async () => {
     const session = await gather();
     expect(send(session, { type: 'build-workbench' }).accepted).toBe(true);

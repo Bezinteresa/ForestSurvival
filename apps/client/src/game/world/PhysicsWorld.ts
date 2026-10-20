@@ -1,5 +1,5 @@
 import type { Collider, KinematicCharacterController, RigidBody, World } from '@dimforge/rapier3d-compat';
-import { CAMPFIRE_CONFIG, WORKBENCH_CONFIG } from '@forest-survival/shared';
+import { CAMPFIRE_CONFIG, WORKBENCH_CONFIG, BUILD_SITES, buildingBox, type BoxDefinition } from '@forest-survival/shared';
 import { CAMP_STORAGE, INVENTORY_CONFIG, PLAYER_CONFIG, SIMULATION_CONFIG, TEST_WORLD, TEST_MATERIAL_NODES, TRAINING_DUMMY, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
 
 type Rapier = typeof import('@dimforge/rapier3d-compat')['default'];
@@ -67,6 +67,10 @@ export class PhysicsWorld {
     const bench = WORKBENCH_CONFIG;
     this.entityColliders.set(bench.id, world.createCollider(rapier.ColliderDesc.cuboid(bench.halfSize.x, bench.halfSize.y, bench.halfSize.z).setTranslation(bench.position.x, bench.position.y, bench.position.z).setSensor(true)));
     const spawn = PLAYER_CONFIG.spawn;
+    for (const site of BUILD_SITES) for (const kind of ['storage', 'barricade'] as const) for (const rotation of [0, 1] as const) {
+      const box = buildingBox({ siteId: site.id, kind, rotation })!;
+      this.entityColliders.set(box.id, world.createCollider(rapier.ColliderDesc.cuboid(box.halfSize.x, box.halfSize.y, box.halfSize.z).setTranslation(box.position.x, box.position.y, box.position.z).setSensor(true)));
+    }
     this.player = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y, spawn.z));
     this.playerCollider = world.createCollider(rapier.ColliderDesc.capsule(PLAYER_CONFIG.halfHeight, PLAYER_CONFIG.radius), this.player);
     this.controller = world.createCharacterController(PLAYER_CONFIG.collisionOffset);
@@ -148,6 +152,18 @@ export class PhysicsWorld {
     if (!this.hasLineOfSight(origin, position)) return null;
     const obstruction = this.world.intersectionWithShape(position, { x: 0, y: 0, z: 0, w: 1 }, new this.rapier.Cuboid(INVENTORY_CONFIG.dropHalfSize, 0.12, INVENTORY_CONFIG.dropHalfSize), this.rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, this.playerCollider);
     return obstruction ? null : position;
+  }
+
+  canPlaceBuilding(box: BoxDefinition): boolean {
+    this.assertAlive();
+    if (!this.entityColliders.get(box.id)?.isSensor()) return false;
+    const size = box.halfSize;
+    return !this.world.intersectionWithShape(box.position, { x: 0, y: 0, z: 0, w: 1 }, new this.rapier.Cuboid(size.x + 0.05, size.y - 0.02, size.z + 0.05), this.rapier.QueryFilterFlags.EXCLUDE_SENSORS);
+  }
+
+  activateBuildingCollider(box: BoxDefinition): void {
+    this.assertAlive();
+    this.entityColliders.get(box.id)!.setSensor(false);
   }
 
   resetPlayer(): void {

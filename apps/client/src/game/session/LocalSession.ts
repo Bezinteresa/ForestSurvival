@@ -5,6 +5,7 @@ import { GameplayWorld } from '../world/GameplayWorld';
 import { PhysicsWorld, interpolatePosition, type DebugGeometry } from '../world/PhysicsWorld';
 import type { GameSession } from './GameSession';
 import { WorldClock, type WorldClockSnapshot } from '@forest-survival/shared';
+import { buildingBox, type BuildingPlan, type BuildingPreview } from '@forest-survival/shared';
 
 export class LocalSession implements GameSession {
   private status: SessionStatus = 'ready';
@@ -86,6 +87,11 @@ export class LocalSession implements GameSession {
     };
   }
 
+  previewBuilding(plan: BuildingPlan): BuildingPreview {
+    if (this.destroyed || this.status !== 'running') return { plan: { ...plan }, box: buildingBox(plan), cost: {}, result: { accepted: false, reason: this.status === 'ended' ? 'dead' : 'paused' } };
+    return this.gameplay.previewBuilding(plan, this.currentPlayer, this.simulationTime);
+  }
+
   subscribe(listener: (snapshot: SessionSnapshot) => void): () => void {
     if (this.destroyed) return () => {};
     this.listeners.add(listener);
@@ -132,7 +138,8 @@ export class LocalSession implements GameSession {
       case 'select-slot': result = this.gameplay.selectSlot(command.slot, this.simulationTime); break;
       case 'move-item': result = this.gameplay.moveItem(command.from, command.to, this.simulationTime); break;
       case 'drop-item': result = this.gameplay.drop(command.slot, this.currentPlayer, command.yaw, this.simulationTime); break;
-      case 'transfer-item': result = this.gameplay.transfer(command.direction, command.slot, command.expectedItemId, this.currentPlayer, this.simulationTime); break;
+      case 'transfer-item': result = this.gameplay.transfer(command.direction, command.slot, command.expectedItemId, this.currentPlayer, this.simulationTime, command.storageId); break;
+      case 'place-building': result = this.gameplay.placeBuilding(command.plan, this.currentPlayer, this.simulationTime); break;
       case 'debug-upgrade': result = this.gameplay.debugUpgrade(command.target, command.slot, command.level, this.simulationTime); break;
       case 'pickup': result = this.gameplay.pickup(command.targetId, this.currentPlayer, this.simulationTime); break;
       case 'interact': result = this.gameplay.interact(this.currentPlayer, this.simulationTime, this.viewYaw); break;

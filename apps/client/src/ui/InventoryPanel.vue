@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
-import { ITEM_DEFINITIONS, isTool, isConsumable, isMedical, itemLabel, type CampfireLevel, type WorkbenchLevel, type GameplaySnapshot, type InventorySnapshot } from '@forest-survival/shared';
+import { CAMP_STORAGE, ITEM_DEFINITIONS, isTool, isConsumable, isMedical, itemLabel, type CampfireLevel, type WorkbenchLevel, type GameplaySnapshot, type InventorySnapshot } from '@forest-survival/shared';
 import CampfirePanel from './CampfirePanel.vue';
 import WorkbenchPanel from './WorkbenchPanel.vue';
 
 const props = defineProps<{ inventory: InventorySnapshot; storage: GameplaySnapshot['storage']; campfire: GameplaySnapshot['campfire']; workbench: GameplaySnapshot['workbench']; debugTools: boolean; note: string; focusWorkbench?: boolean }>();
-const emit = defineEmits<{ close: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; consumeItem: [slot: number]; cookItem: [slot: number]; collectCooked: []; fuelFire: [slot: number]; upgradeFire: [expectedLevel: CampfireLevel]; buildWorkbench: []; upgradeWorkbench: [expectedLevel: WorkbenchLevel]; craftItem: [recipeId: string]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
+const emit = defineEmits<{ close: []; beginBuilding: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; consumeItem: [slot: number]; cookItem: [slot: number]; collectCooked: []; fuelFire: [slot: number]; upgradeFire: [expectedLevel: CampfireLevel]; buildWorkbench: []; upgradeWorkbench: [expectedLevel: WorkbenchLevel]; craftItem: [recipeId: string]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
 const dialog = useTemplateRef<HTMLDialogElement>('dialog');
 const selected = ref(props.inventory.activeSlot);
 const selectedStorage = ref(0);
@@ -51,10 +51,11 @@ onBeforeUnmount(() => dialog.value?.close());
     </div>
     <CampfirePanel :campfire="campfire" :inventory="inventory" :selected="stack" :moving="movingFrom !== null" @fuel="emit('fuelFire', selected)" @cook="emit('cookItem', selected)" @collect="emit('collectCooked')" @upgrade="emit('upgradeFire', $event)" />
     <WorkbenchPanel :workbench="workbench" :inventory="inventory" :moving="movingFrom !== null" @build="emit('buildWorkbench')" @upgrade="emit('upgradeWorkbench', $event)" @craft="emit('craftItem', $event)" />
+    <section class="storage-section"><h3>Постройки лагеря</h3><p class="inventory-help">Закройте рюкзак и выберите площадку в предпросмотре. До подтверждения материалы сохраняются.</p><button class="button primary" :disabled="movingFrom !== null" @click="emit('beginBuilding')">Выбрать постройку</button></section>
     <section class="storage-section" aria-labelledby="storage-title">
       <h3 id="storage-title">Склад лагеря · {{ storage.inventory.slots.filter(Boolean).length }} / {{ storage.inventory.slots.length }} слотов</h3>
       <template v-if="storage.inReach">
-        <p class="inventory-help">Стартовая кирка хранится здесь. Можно положить или забрать целый стек. При нехватке места предмет остаётся в исходном контейнере.</p>
+        <p class="inventory-help">{{ storage.id === CAMP_STORAGE.id ? 'Стартовая кирка хранится в этом ящике.' : 'Этот склад построен вами и имеет собственный запас.' }} Можно положить или забрать целый стек. При нехватке места предмет остаётся в исходном контейнере.</p>
         <div class="inventory-slots">
           <button v-for="(item, slot) in storage.inventory.slots" :key="slot" class="inventory-slot" :class="{ selected: selectedStorage === slot }" :aria-pressed="selectedStorage === slot" @click="selectedStorage = slot">
             <span>Склад {{ slot + 1 }}</span><strong>{{ item ? itemLabel(item) : 'Пусто' }}</strong><span v-if="item">×{{ item.amount }}</span>

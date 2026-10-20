@@ -8,6 +8,7 @@ import { LocalSession } from '../session/LocalSession';
 import { SceneView } from '../world/SceneView';
 import { FixedStepLoop, browserScheduler, type FrameScheduler } from './FixedStepLoop';
 import type { GameView } from './GameView';
+import type { BuildingPlan, BuildingPreview } from '@forest-survival/shared';
 
 export class Game {
   readonly input = new InputState();
@@ -20,6 +21,7 @@ export class Game {
   private simulationSpeed: SimulationSpeed = 1;
   private commandNumber = 0;
   private inventoryOpen = false;
+  private buildingPlan: BuildingPlan | null = null;
   private readonly cleanups: Array<() => void> = [];
 
   static async create(host: HTMLElement, onSnapshot: (snapshot: SessionSnapshot) => void, onError: (error: unknown) => void, signal: AbortSignal, controls?: { settings: ControlSettings; onStatus: (status: ControlStatus) => void; onInventoryChange?: (open: boolean) => void }): Promise<Game> {
@@ -66,7 +68,7 @@ export class Game {
 
   start(): void {
     if (this.destroyed || this.session.getSnapshot().status === 'ended') return;
-    if (this.session.getSnapshot().status !== 'running') this.input.setContext('gameplay');
+    if (this.session.getSnapshot().status !== 'running') this.input.setContext(this.buildingPlan ? 'ui' : 'gameplay');
     this.session.start();
     this.loop.start();
     this.focusControls();
@@ -96,6 +98,16 @@ export class Game {
   setSettings(settings: ControlSettings): void { this.settings = sanitizeControlSettings(settings); }
 
   focusControls(): void { if (!this.destroyed) this.browserInput?.focusCanvas(); }
+
+  setBuildingPlan(plan: BuildingPlan | null): void {
+    if (this.destroyed || this.session.getSnapshot().status === 'ended') return;
+    this.closeInventory();
+    this.buildingPlan = plan ? { ...plan } : null;
+    this.input.setContext(plan || this.session.getSnapshot().status !== 'running' ? 'ui' : 'gameplay');
+    this.browserInput?.suspend();
+  }
+
+  previewBuilding(plan: BuildingPlan): BuildingPreview { return this.session.previewBuilding(plan); }
 
   toggleInventory(): void {
     if (this.destroyed || this.session.getSnapshot().status !== 'running') return;
@@ -188,6 +200,7 @@ export class Game {
       playerYaw: this.session.getRenderYaw(alpha),
       camera: this.camera.getPose(),
       debugGeometry: this.debugEnabled ? this.session.getDebugGeometry() : undefined,
+      buildingPreview: this.buildingPlan ? this.session.previewBuilding(this.buildingPlan) : undefined,
     });
   }
 }

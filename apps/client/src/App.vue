@@ -10,6 +10,8 @@ import InventoryPanel from './ui/InventoryPanel.vue';
 import PlayerStatus from './ui/PlayerStatus.vue';
 import RunResult from './ui/RunResult.vue';
 import WorldClockHud from './ui/WorldClockHud.vue';
+import CampBuildingPanel from './ui/CampBuildingPanel.vue';
+import { BUILD_SITES, type BuildingPlan } from '@forest-survival/shared';
 
 const host = useTemplateRef<HTMLDivElement>('scene');
 const snapshot = shallowRef<SessionSnapshot>();
@@ -19,6 +21,8 @@ const showDebug = ref(false);
 const simulationSpeed = ref(1);
 const inventoryOpen = ref(false);
 const inventoryNote = ref('');
+const buildingPlan = ref<BuildingPlan | null>(null);
+const buildingPreview = computed(() => { const state = snapshot.value; return state && buildingPlan.value ? game?.previewBuilding(buildingPlan.value) : undefined; });
 const currentInput = shallowRef<InputState>();
 const controls = shallowRef<ControlStatus>({ cameraLocked: false, firstPerson: false, pointerLocked: false, message: '' });
 function settingsStorage(): Storage | undefined { try { return window.localStorage; } catch { return undefined; } }
@@ -61,6 +65,7 @@ function stop(): void {
   game?.destroy();
   game = undefined;
   inventoryOpen.value = false;
+  buildingPlan.value = null;
   currentInput.value = undefined;
   snapshot.value = undefined;
   loading.value = false;
@@ -94,7 +99,7 @@ async function start(): Promise<void> {
         if (disposed || ownGeneration !== generation) return;
         inventoryOpen.value = open;
         inventoryNote.value = '';
-        if (!open) void nextTick(() => { if (!disposed && ownGeneration === generation) game?.focusControls(); });
+        if (!open && !buildingPlan.value) void nextTick(() => { if (!disposed && ownGeneration === generation) game?.focusControls(); });
       },
     });
     if (controller.signal.aborted || disposed || ownGeneration !== generation) {
@@ -156,6 +161,21 @@ function reportInventory(result?: CommandResult): void {
   inventoryNote.value = result?.accepted ? 'Готово.' : result?.reason ? messages[result.reason] ?? 'Операция недоступна.' : 'Операция недоступна.';
 }
 
+function beginBuilding(): void {
+  const position = snapshot.value?.player.position;
+  if (!position || !game) return;
+  const site = [...BUILD_SITES].sort((a, b) => Math.hypot(a.position.x - position.x, a.position.z - position.z) - Math.hypot(b.position.x - position.x, b.position.z - position.z))[0]!;
+  changeBuilding({ kind: 'storage', siteId: site.id, rotation: 0 });
+}
+function changeBuilding(plan: BuildingPlan): void { buildingPlan.value = { ...plan }; inventoryNote.value = ''; game?.setBuildingPlan(plan); }
+function cancelBuilding(): void { if (!buildingPlan.value) return; buildingPlan.value = null; game?.setBuildingPlan(null); void nextTick(() => game?.focusControls()); }
+function placeBuilding(): void {
+  if (!buildingPlan.value) return;
+  const result = game?.sendCommand({ type: 'place-building', plan: { ...buildingPlan.value }, requestId: 'ui-' + (++requestNumber) });
+  reportInventory(result);
+  if (result?.accepted) cancelBuilding();
+}
+function toggleInventory(): void { cancelBuilding(); game?.toggleInventory(); }
 function selectSlot(slot: number): void { reportInventory(game?.sendCommand({ type: 'select-slot', slot, requestId: 'ui-' + (++requestNumber) })); }
 function moveItem(from: number, to: number): void { reportInventory(game?.sendCommand({ type: 'move-item', from, to, requestId: 'ui-' + (++requestNumber) })); }
 function dropItem(slot: number): void {
@@ -166,7 +186,7 @@ function dropItem(slot: number): void {
 function transferItem(direction: 'deposit' | 'withdraw', slot: number): void {
   const container = direction === 'deposit' ? gameplay.value?.inventory : gameplay.value?.storage.inventory;
   const stack = container?.slots[slot];
-  if (stack) reportInventory(game?.sendCommand({ type: 'transfer-item', direction, slot, expectedItemId: stack.id, requestId: 'ui-' + (++requestNumber) }));
+  if (stack) reportInventory(game?.sendCommand({ type: 'transfer-item', direction, slot, expectedItemId: stack.id, storageId: gameplay.value?.storage.id, requestId: 'ui-' + (++requestNumber) }));
 }
 function consumeItem(slot: number): void {
   const stack = gameplay.value?.inventory.slots[slot];
@@ -228,7 +248,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
     <div ref="scene" class="scene" />
     <header class="topbar">
       <div class="brand"><span class="brand-mark" aria-hidden="true">▲</span><div><strong>FOREST SURVIVAL</strong><span>Ранний прототип</span></div></div>
-      <div class="header-actions" data-ui><span class="mode-badge"><span aria-hidden="true" />Одиночная сцена</span><button v-if="canPlay" class="button secondary" @click="game?.toggleInventory()">Рюкзак</button><button v-if="canPlay" class="button secondary" @click="togglePause">Меню</button></div>
+      <div class="header-actions" data-ui><span class="mode-badge"><span aria-hidden="true" />Одиночная сцена</span><button v-if="canPlay" class="button secondary" @click="toggleInventory">Рюкзак</button><button v-if="canPlay" class="button secondary" @click="togglePause">Меню</button></div>
     </header>
 
     <section v-if="!active" class="welcome-panel" aria-labelledby="welcome-title">
@@ -255,8 +275,9 @@ onBeforeUnmount(() => { disposed = true; stop(); });
       <button v-for="(item, slot) in gameplay.inventory.slots.slice(0, 5)" :key="slot" :class="{ selected: gameplay.inventory.activeSlot === slot }" :aria-pressed="gameplay.inventory.activeSlot === slot" @pointerdown.prevent @click="selectSlot(slot)"><span>{{ slot + 1 }}</span><strong>{{ item ? itemLabel(item) : 'Пусто' }}</strong><span v-if="item">×{{ item.amount }}</span></button>
       <progress v-if="gameplay.attack.phase !== 'idle'" :value="gameplay.attack.progress" max="1" aria-label="Восстановление после удара" />
     </div>
-    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen" :camera-locked="controls.cameraLocked" :can-interact="canInteract" :interaction-label="interactionLabel" :primary-label="primaryLabel" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
-    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :workbench="gameplay.workbench" :focus-workbench="gameplay.interaction?.kind === 'workbench'" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @cook-item="cookItem" @collect-cooked="collectCooked" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @build-workbench="buildWorkbench" @upgrade-workbench="upgradeWorkbench" @craft-item="craftItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
+    <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen && !buildingPlan" :camera-locked="controls.cameraLocked" :can-interact="canInteract" :interaction-label="interactionLabel" :primary-label="primaryLabel" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
+    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :workbench="gameplay.workbench" :focus-workbench="gameplay.interaction?.kind === 'workbench'" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @begin-building="beginBuilding" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @cook-item="cookItem" @collect-cooked="collectCooked" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @build-workbench="buildWorkbench" @upgrade-workbench="upgradeWorkbench" @craft-item="craftItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
+    <CampBuildingPanel v-if="canPlay && buildingPlan && snapshot" :plan="buildingPlan" :preview="buildingPreview" :player="snapshot.player" :note="inventoryNote" @change="changeBuilding" @place="placeBuilding" @cancel="cancelBuilding" />
     <PlayerStatus v-if="canPlay && snapshot" :vitals="snapshot.vitals" />
     <RunResult v-if="ended && snapshot" :vitals="snapshot.vitals" :clock="snapshot.clock" :elapsed="elapsed" @restart="start" @leave="stop" />
     <div v-if="active && paused" class="pause-backdrop" />

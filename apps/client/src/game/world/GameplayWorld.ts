@@ -10,6 +10,8 @@ import { CAMPFIRE_CONFIG, FUEL_DEFINITIONS, isFuel, type CampfireLevel } from '@
 import { Campfire } from './Campfire';
 import { WORKBENCH_CONFIG, type WorkbenchLevel } from '@forest-survival/shared';
 import { Workbench, type WorkbenchPlacement } from './Workbench';
+import { CampBuilding, type BuildingQueries } from './CampBuilding';
+import { type BuildingPlan, type BuildingPreview } from '@forest-survival/shared';
 
 interface ResourceDefinition extends TreeDefinition { readonly kind: ResourceKind }
 
@@ -17,11 +19,15 @@ export interface GameplayQueries extends VisibilityQueries {
   findDropPosition(player: PlayerSnapshot, yaw: number): Vector3Data | null;
   canPlaceWorkbench?: WorkbenchPlacement['canPlaceWorkbench'];
   addWorkbenchCollider?: WorkbenchPlacement['addWorkbenchCollider'];
+  canPlaceBuilding?: BuildingQueries['canPlaceBuilding'];
+  activateBuildingCollider?: BuildingQueries['activateBuildingCollider'];
 }
 
 export class GameplayWorld {
   private readonly attacks = new AttackController();
   private readonly storage = new CampStorage();
+  private currentStorage = this.storage;
+  private readonly buildings = new CampBuilding();
   private readonly campfire = new Campfire();
   private readonly workbench = new Workbench();
   private workbenchInReach = false;
@@ -48,6 +54,27 @@ export class GameplayWorld {
   }
 
   getSelectedItem() { return this.inventory.getStack(this.inventory.selectedSlot); }
+
+  previewBuilding(plan: BuildingPlan, player: PlayerSnapshot, now: number): BuildingPreview {
+    const preview = this.buildings.preview(plan, this.inventory, player, this.workbench.snapshot(false).level, {
+      hasLineOfSight: (...args) => this.visibility.hasLineOfSight(...args),
+      canPlaceBuilding: (box) => !!this.visibility.activateBuildingCollider && (this.visibility.canPlaceBuilding?.(box) ?? false),
+      activateBuildingCollider: (box) => this.visibility.activateBuildingCollider!(box),
+    }, [...this.loot.values()]);
+    return this.attacks.isBusy(now) ? { ...preview, result: { accepted: false, reason: 'busy' } } : preview;
+  }
+
+  placeBuilding(plan: BuildingPlan, player: PlayerSnapshot, now: number): CommandResult {
+    const preview = this.previewBuilding(plan, player, now);
+    if (!preview.result.accepted) return preview.result;
+    const result = this.buildings.place(plan, this.inventory, player, this.workbench.snapshot(false).level, {
+      hasLineOfSight: (...args) => this.visibility.hasLineOfSight(...args),
+      canPlaceBuilding: (box) => this.visibility.canPlaceBuilding!(box),
+      activateBuildingCollider: (box) => this.visibility.activateBuildingCollider!(box),
+    }, [...this.loot.values()]);
+    if (result.accepted) { this.feedback = { kind: 'info', text: 'Постройка установлена.', at: now }; this.updateInteraction(player, player.yaw); }
+    return result;
+  }
 
   step(dt: number): void { this.campfire.step(dt); }
   warmthDuration(dt: number, position: Vector3Data): number { return this.campfire.warmthDuration(dt, position); }
@@ -182,9 +209,11 @@ export class GameplayWorld {
     return this.inventory.move(from, to);
   }
 
-  transfer(direction: 'deposit' | 'withdraw', slot: number, expectedItemId: string, player: PlayerSnapshot, now: number): CommandResult {
+  transfer(direction: 'deposit' | 'withdraw', slot: number, expectedItemId: string, player: PlayerSnapshot, now: number, storageId: string = CAMP_STORAGE.id): CommandResult {
     if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
-    const result = this.storage.transfer(this.inventory, direction, slot, expectedItemId, player, this.visibility);
+    const storage = storageId === CAMP_STORAGE.id ? this.storage : this.buildings.storage(storageId);
+    if (!storage) return { accepted: false, reason: 'missing' };
+    const result = storage.transfer(this.inventory, direction, slot, expectedItemId, player, this.visibility);
     this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted ? 'Предмет перенесён.' : result.reason === 'out-of-range' ? 'Подойдите к складу.' : result.reason === 'stale' ? 'Слот изменился. Выберите предмет заново.' : 'Нет места для всего стека.', at: now };
     return result;
   }
@@ -274,7 +303,13 @@ export class GameplayWorld {
       return stack ? this.fuelFire(this.inventory.selectedSlot, stack.id, player, now) : this.reject('wrong-fuel', 'Выберите древесину или уголь.', now);
     }
     if (this.interaction?.kind === 'bush') return this.gather(this.interaction.id, player, now);
-    if (this.interaction?.kind === 'storage') return { accepted: this.storage.canAccess(player, this.visibility) };
+    if (this.interaction?.kind === 'storage') {
+      const storage = this.interaction.id === CAMP_STORAGE.id ? this.storage : this.buildings.storage(this.interaction.id);
+      if (!storage?.canAccess(player, this.visibility)) return { accepted: false, reason: 'out-of-range' };
+      this.currentStorage = storage;
+      this.storageInReach = true;
+      return { accepted: true };
+    }
     if (this.interaction?.kind === 'workbench') return this.attacks.isBusy(now) ? this.reject('busy', 'Дождитесь завершения удара.', now) : this.workbench.access(player, this.visibility);
     return this.interaction?.kind === 'pickup' ? this.pickup(this.interaction.id, player, now) : { accepted: false, reason: 'missing' };
   }
@@ -283,7 +318,8 @@ export class GameplayWorld {
     const dummy: DummySnapshot = { id: TRAINING_DUMMY.id, position: { ...TRAINING_DUMMY.position }, health: this.dummy.currentHealth, maxHealth: this.dummy.maxHealth, dead: this.dummy.exhausted };
     return {
       inventory: this.inventory.snapshot(),
-      storage: { inventory: this.storage.snapshot(), inReach: this.storageInReach },
+      storage: { id: this.currentStorage.definition.id, inventory: this.currentStorage.snapshot(), inReach: this.storageInReach },
+      buildings: this.buildings.snapshot(),
       debugTools: this.debugTools,
       equippedItem: this.inventory.equippedItem,
       bag: { wood: this.inventory.count('wood'), capacity: this.inventory.capacityFor('wood') },
@@ -314,7 +350,11 @@ export class GameplayWorld {
     const origin = this.getOrigin(player);
     this.lastPlayer = { ...player, position: { ...player.position } };
     this.campfireInReach = this.campfire.access(player, this.visibility).accepted;
-    this.storageInReach = this.storage.canAccess(player, this.visibility);
+    const storages = [this.storage, ...this.buildings.containers()];
+    if (!this.currentStorage.canAccess(player, this.visibility)) {
+      this.currentStorage = storages.filter((entry) => entry.canAccess(player, this.visibility)).sort((a, b) => Math.hypot(a.definition.position.x - player.position.x, a.definition.position.z - player.position.z) - Math.hypot(b.definition.position.x - player.position.x, b.definition.position.z - player.position.z))[0] ?? this.currentStorage;
+    }
+    this.storageInReach = this.currentStorage.canAccess(player, this.visibility);
     this.workbenchInReach = this.workbench.access(player, this.visibility).accepted;
     const item = selectTarget([...this.loot.values()].map((loot) => ({ id: loot.id, position: loot.position, radius: 0 })), origin, yaw, RESOURCE_CONFIG.pickupRange, Math.PI * 0.48, AXE_CONFIG.maxHeightDifference, this.visibility);
     if (item) {
@@ -324,9 +364,9 @@ export class GameplayWorld {
     }
     const bush = this.foraging.target(player, yaw, this.visibility);
     if (bush) { this.interaction = { id: bush.id, kind: 'bush', label: 'Собрать ягоды' }; return; }
-    const storage = CAMP_STORAGE;
-    if (this.storageInReach && selectTarget([{ id: storage.id, position: storage.position, radius: 0 }], origin, yaw, storage.range, AXE_CONFIG.halfAngle, 1.5, this.visibility)) {
-      this.interaction = { id: storage.id, kind: 'storage', label: 'Открыть склад лагеря' };
+    const storageTarget = selectTarget(storages.filter((entry) => entry.canAccess(player, this.visibility)).map((entry) => ({ id: entry.definition.id, position: entry.definition.position, radius: 0 })), origin, yaw, CAMP_STORAGE.range, AXE_CONFIG.halfAngle, 1.5, this.visibility);
+    if (storageTarget) {
+      this.interaction = { id: storageTarget.id, kind: 'storage', label: 'Открыть склад лагеря' };
       return;
     }
     const fire = CAMPFIRE_CONFIG;
