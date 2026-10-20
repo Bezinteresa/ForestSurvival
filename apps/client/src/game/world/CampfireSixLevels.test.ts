@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPFIRE_LEVELS, TEST_MATERIAL_NODES, TEST_WORLD, type ItemId, type PlayerSnapshot } from '@forest-survival/shared';
+import { BED_SITES, BUILD_SITES, CAMPFIRE_LEVELS, TEST_MATERIAL_NODES, TEST_WORLD, type ItemId, type PlayerSnapshot } from '@forest-survival/shared';
 import { Inventory } from '../items/Inventory';
 import { GameplayWorld } from './GameplayWorld';
 
 const player: PlayerSnapshot = { id: 'player', position: { x: 0, y: 0.92, z: 1.2 }, grounded: true, yaw: 0 };
-const queries = { hasLineOfSight: () => true, removeEntityCollider: () => {}, findDropPosition: () => null, canPlaceWorkbench: () => true, addWorkbenchCollider: () => {} };
+const queries = { hasLineOfSight: () => true, removeEntityCollider: () => {}, findDropPosition: () => null, canPlaceWorkbench: () => true, addWorkbenchCollider: () => {}, canPlaceBuilding: () => true, activateBuildingCollider: () => {} };
 
 describe('six-level campfire resource progression', () => {
   it('harvests the configured map with starter tools and buys all levels in a five-slot bag without debug', () => {
@@ -79,7 +79,20 @@ describe('six-level campfire resource progression', () => {
     }
     expect(world.getSnapshot(now).workbench).toMatchObject({ built: true, level: 3, nextUpgrade: null });
     const remaining = (itemId: ItemId) => world.getSnapshot(now).loot.filter((item) => item.itemId === itemId).reduce((sum, item) => sum + item.amount, 0);
-    expect(['wood', 'stone', 'scrap', 'coal'].map((id) => remaining(id as ItemId))).toEqual([7, 3, 4, 6]);
+    expect(['wood', 'stone', 'scrap', 'coal'].map((id) => remaining(id as ItemId))).toEqual([31, 3, 12, 6]);
+    // Six crates are the most expensive way to fill the general plots. Even then all four beds fit the budget.
+    for (const site of BUILD_SITES) {
+      collect('wood', 3); collect('scrap', 1);
+      const near = { ...player, position: { ...site.position, y: 0.92, z: site.position.z - 2 } };
+      expect(world.placeBuilding({ kind: 'storage', siteId: site.id, rotation: 0 }, near, now).accepted).toBe(true);
+    }
+    for (const site of BED_SITES) {
+      collect('wood', 2); collect('scrap', 1);
+      const near = { ...player, position: { ...site.position, y: 0.92, z: site.position.z - 2 } };
+      expect(world.placeBuilding({ kind: 'bed', siteId: site.id, rotation: 0 }, near, now).accepted).toBe(true);
+    }
+    expect(world.getSnapshot(now).bedIds).toHaveLength(4);
+    expect(['wood', 'stone', 'scrap', 'coal'].map((id) => remaining(id as ItemId))).toEqual([5, 3, 2, 6]);
     expect(world.isWarm({ x: 14.99, y: 0.92, z: 2.8 })).toBe(true);
     expect(world.isWarm({ x: 15.01, y: 0.92, z: 2.8 })).toBe(false);
     world.step(60);

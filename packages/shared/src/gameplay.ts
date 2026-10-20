@@ -55,6 +55,8 @@ export interface GameplaySnapshot {
   readonly inventory: InventorySnapshot;
   readonly storage: { readonly id: string; readonly inventory: InventorySnapshot; readonly inReach: boolean };
   readonly buildings: readonly BuildingSnapshot[];
+  /** Existing beds contributing to the next dawn. Derived from buildings, never incremented by a request. */
+  readonly bedIds: readonly string[];
   readonly debugTools: boolean;
   readonly equippedItem: EquippedItemId;
   readonly bag: { readonly wood: number; readonly capacity: number };

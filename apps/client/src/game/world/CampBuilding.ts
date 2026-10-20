@@ -12,6 +12,7 @@ export class CampBuilding {
   private readonly storages = new Map<string, CampStorage>();
   storage(id: string): CampStorage | undefined { return this.storages.get(id); }
   containers(): readonly CampStorage[] { return [...this.storages.values()]; }
+  bedIds(): string[] { return [...new Set(this.buildings.filter((entry) => entry.kind === 'bed').map((entry) => entry.id))].sort(); }
   snapshot(): BuildingSnapshot[] { return this.buildings.map((entry) => ({ ...entry, position: { ...entry.position }, halfSize: { ...entry.halfSize } })); }
 
   preview(plan: BuildingPlan, bag: Inventory, player: PlayerSnapshot, level: number, queries: BuildingQueries, loot: readonly LootSnapshot[]): BuildingPreview {

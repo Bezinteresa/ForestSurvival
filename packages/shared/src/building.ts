@@ -1,11 +1,12 @@
 import type { BoxDefinition, CommandResult, Vector3Data } from './index';
 import type { MaterialCost } from './items';
 
-export type BuildingKind = 'storage' | 'barricade';
+export type BuildingKind = 'storage' | 'barricade' | 'bed';
 export interface BuildingPlan { readonly kind: BuildingKind; readonly siteId: string; readonly rotation: 0 | 1 }
 export const BUILDING_DEFINITIONS = {
   storage: { label: 'Склад', halfSize: { x: 0.6, y: 0.5, z: 0.4 }, cost: { wood: 3, scrap: 1 }, minLevel: 1, slots: 8 },
   barricade: { label: 'Баррикада', halfSize: { x: 1.2, y: 0.6, z: 0.2 }, cost: { wood: 2 }, minLevel: 2, slots: 0 },
+  bed: { label: 'Кровать', halfSize: { x: 0.55, y: 0.35, z: 1 }, cost: { wood: 2, scrap: 1 }, minLevel: 1, slots: 0 },
 } as const satisfies Record<BuildingKind, { label: string; halfSize: Vector3Data; cost: MaterialCost; minLevel: number; slots: number }>;
 export const BUILDING_CONFIG = { range: 3.2, storageRange: 2.6, passageClearance: 0.4, maxCenterHeightDifference: 0.4 } as const;
 export const BUILD_SITES = [
@@ -16,6 +17,18 @@ export const BUILD_SITES = [
   { id: 'plot-5', position: { x: -6, y: 0, z: 0 } },
   { id: 'plot-6', position: { x: 0, y: 0, z: -5.5 } },
 ] as const;
+export const BED_CONFIG = { maxBeds: 4 } as const;
+// Reserved places keep all four bonuses available even when the six general plots are occupied.
+export const BED_SITES = [
+  { id: 'bed-plot-1', position: { x: -5, y: 0, z: 10.5 } },
+  { id: 'bed-plot-2', position: { x: -1, y: 0, z: 10.5 } },
+  { id: 'bed-plot-3', position: { x: 5.5, y: 0, z: 10.5 } },
+  { id: 'bed-plot-4', position: { x: 8, y: 0, z: -3 } },
+] as const;
+export const ALL_BUILD_SITES = [...BUILD_SITES, ...BED_SITES];
+export function buildSitesFor(kind: BuildingKind): readonly { readonly id: string; readonly position: Vector3Data }[] {
+  return kind === 'bed' ? BED_SITES : BUILD_SITES;
+}
 // Author the plots around a permanent route. These separated footprints cannot
 // close an enclosure; free placement will need a navigation connectivity check.
 export const CAMP_PASSAGE = [
@@ -27,7 +40,7 @@ export interface BuildingPreview { readonly plan: BuildingPlan; readonly box: Bo
 export function buildingColliderId(plan: BuildingPlan): string { return 'build/' + plan.siteId + '/' + plan.kind + '/' + plan.rotation; }
 export function buildingBox(plan: BuildingPlan): BoxDefinition | null {
   if (!plan || !Object.hasOwn(BUILDING_DEFINITIONS, plan.kind) || (plan.rotation !== 0 && plan.rotation !== 1)) return null;
-  const site = BUILD_SITES.find((entry) => entry.id === plan.siteId);
+  const site = buildSitesFor(plan.kind).find((entry) => entry.id === plan.siteId);
   if (!site) return null;
   const size = BUILDING_DEFINITIONS[plan.kind].halfSize;
   return { id: buildingColliderId(plan), position: { ...site.position, y: size.y }, halfSize: { x: plan.rotation ? size.z : size.x, y: size.y, z: plan.rotation ? size.x : size.z } };

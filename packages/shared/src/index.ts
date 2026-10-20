@@ -139,5 +139,13 @@ export const TEST_WORLD = {
     { id: 'tree-10', position: { x: 17, y: 0, z: 14 }, radius: 0.4, trunkHeight: 2.6 },
     { id: 'tree-11', position: { x: -16, y: 0, z: 16 }, radius: 0.4, trunkHeight: 2.6 },
     { id: 'tree-12', position: { x: 16, y: 0, z: -16 }, radius: 0.4, trunkHeight: 2.6 },
+    { id: 'tree-13', position: { x: -17, y: 0, z: -1 }, radius: 0.4, trunkHeight: 2.6 },
+    { id: 'tree-14', position: { x: -17, y: 0, z: -10 }, radius: 0.4, trunkHeight: 2.6 },
+    { id: 'tree-15', position: { x: -12, y: 0, z: -16 }, radius: 0.4, trunkHeight: 2.6 },
+    { id: 'tree-16', position: { x: -5, y: 0, z: -17 }, radius: 0.4, trunkHeight: 2.6 },
+    { id: 'tree-17', position: { x: 6, y: 0, z: -17 }, radius: 0.4, trunkHeight: 2.6 },
+    { id: 'tree-18', position: { x: 17, y: 0, z: -1 }, radius: 0.4, trunkHeight: 2.6 },
+    { id: 'tree-19', position: { x: 12, y: 0, z: 17 }, radius: 0.4, trunkHeight: 2.6 },
+    { id: 'tree-20', position: { x: -11, y: 0, z: 17 }, radius: 0.4, trunkHeight: 2.6 },
   ] satisfies readonly TreeDefinition[],
 } as const;

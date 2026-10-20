@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BUILD_SITES, BUILDING_DEFINITIONS, type BuildingPreview, type BuildingSnapshot } from '@forest-survival/shared';
+import { ALL_BUILD_SITES, BUILDING_DEFINITIONS, type BuildingPreview, type BuildingSnapshot } from '@forest-survival/shared';
 
 export class CampBuildingView {
   private readonly markers = new Map<string, THREE.Mesh>();
@@ -10,7 +10,7 @@ export class CampBuildingView {
   constructor(private readonly scene: THREE.Scene, private readonly obstacles: THREE.Object3D[]) {
     const material = new THREE.MeshStandardMaterial({ color: 0x568e9c, transparent: true, opacity: 0.35, depthWrite: false });
     const geometry = new THREE.RingGeometry(0.55, 0.65, 20);
-    for (const site of BUILD_SITES) {
+    for (const site of ALL_BUILD_SITES) {
       const marker = new THREE.Mesh(geometry, material);
       marker.rotation.x = -Math.PI / 2;
       marker.position.set(site.position.x, 0.025, site.position.z);
@@ -27,10 +27,18 @@ export class CampBuildingView {
       root.position.set(entry.position.x, 0, entry.position.z);
       root.rotation.y = entry.rotation * Math.PI / 2;
       const material = new THREE.MeshStandardMaterial({ color: entry.kind === 'storage' ? 0x9f854f : 0x87633d, roughness: 1 });
-      const add = (x: number, y: number, z: number, sx: number, sy: number, sz: number) => {
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material); mesh.position.set(x, y, z); root.add(mesh); this.obstacles.push(mesh);
+      const add = (x: number, y: number, z: number, sx: number, sy: number, sz: number, surface = material) => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), surface); mesh.position.set(x, y, z); root.add(mesh); this.obstacles.push(mesh);
       };
       if (entry.kind === 'storage') { const size = BUILDING_DEFINITIONS.storage.halfSize; add(0, size.y, 0, size.x * 2, size.y * 2, size.z * 2); }
+      else if (entry.kind === 'bed') {
+        add(0, 0.25, 0, 1.1, 0.25, 2);
+        for (const x of [-0.4, 0.4]) for (const z of [-0.85, 0.85]) add(x, 0.1, z, 0.15, 0.2, 0.15);
+        const blanket = new THREE.MeshStandardMaterial({ color: 0x5a8897, roughness: 1 });
+        const pillow = new THREE.MeshStandardMaterial({ color: 0xdedcc8, roughness: 1 });
+        add(0, 0.46, 0.2, 1.02, 0.17, 1.5, blanket);
+        add(0, 0.55, -0.65, 0.85, 0.3, 0.45, pillow);
+      }
       else {
         for (const x of [-1, 1]) add(x, 0.6, 0, 0.16, 1.2, 0.4);
         for (const y of [0.25, 0.6, 0.95]) add(0, y, 0, 2.4, 0.22, 0.2);

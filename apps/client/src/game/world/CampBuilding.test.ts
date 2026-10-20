@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BUILD_SITES, CAMP_PASSAGE, buildingBox, blocksCampPassage, type BuildingPlan, type PlayerSnapshot } from '@forest-survival/shared';
+import { BED_SITES, BUILD_SITES, CAMP_PASSAGE, buildingBox, blocksCampPassage, type BuildingPlan, type PlayerSnapshot } from '@forest-survival/shared';
 import { Inventory } from '../items/Inventory';
 import { CampBuilding } from './CampBuilding';
 import { PhysicsWorld } from './PhysicsWorld';
@@ -15,6 +15,35 @@ const resources: Array<{ destroy(): void }> = [];
 afterEach(() => { for (const resource of resources.splice(0)) resource.destroy(); queries.activateBuildingCollider.mockClear(); });
 
 describe('authored camp construction', () => {
+  it('reserves four bed places, charges once per unique bed and rejects general plots, fifth places and shortages', () => {
+    const camp = new CampBuilding();
+    for (const site of BUILD_SITES) {
+      const near = { ...player, position: { ...site.position, y: 0.92, z: site.position.z - 2 } };
+      expect(camp.place({ kind: 'storage', siteId: site.id, rotation: 0 }, bag(), near, 1, queries, []).accepted).toBe(true);
+    }
+    for (const [index, site] of BED_SITES.entries()) {
+      const bed: BuildingPlan = { kind: 'bed', siteId: site.id, rotation: index % 2 as 0 | 1 };
+      const near = { ...player, position: { ...site.position, y: 0.92, z: site.position.z - 2 } };
+      const inventory = bag(), before = inventory.snapshot();
+      expect(camp.preview(bed, inventory, near, 1, queries, []).result.accepted).toBe(true);
+      expect(inventory.snapshot()).toEqual(before);
+      expect(camp.place(bed, inventory, near, 0, queries, []).reason).toBe('station-required');
+      expect(inventory.snapshot()).toEqual(before);
+      expect(camp.place(bed, inventory, near, 1, queries, []).accepted).toBe(true);
+      expect([inventory.count('wood'), inventory.count('scrap')]).toEqual([1, 1]);
+      expect(camp.place({ ...bed, rotation: bed.rotation ? 0 : 1 }, inventory, near, 1, queries, []).reason).toBe('already-built');
+      expect(camp.bedIds()).toHaveLength(index + 1);
+    }
+    expect(camp.snapshot()).toHaveLength(10);
+    const ids = camp.bedIds(); ids.pop(); expect(camp.bedIds()).toHaveLength(4);
+    for (const siteId of ['plot-1', 'bed-plot-5']) expect(camp.place({ kind: 'bed', siteId, rotation: 0 }, bag(), player, 1, queries, []).reason).toBe('invalid');
+    expect(buildingBox({ ...plan, siteId: 'bed-plot-1' })).toBeNull();
+    const emptyCamp = new CampBuilding(), missing = new Inventory(5, [[0, { id: 'wood', itemId: 'wood', amount: 2 }]]), before = missing.snapshot();
+    const near = { ...player, position: { x: -5, y: 0.92, z: 8.5 } };
+    expect(emptyCamp.place({ kind: 'bed', siteId: 'bed-plot-1', rotation: 0 }, missing, near, 1, queries, []).reason).toBe('insufficient-materials');
+    expect(missing.snapshot()).toEqual(before);
+    expect(emptyCamp.bedIds()).toEqual([]);
+  });
   it('previews without payment, confirms one whole price and refuses a second object on the same site', () => {
     const camp = new CampBuilding(), inventory = bag(), before = inventory.snapshot();
     expect(camp.preview(plan, inventory, player, 1, queries, []).result.accepted).toBe(true);
@@ -90,6 +119,32 @@ describe('authored camp construction', () => {
 });
 
 describe('construction with live Rapier and lifecycle', () => {
+  it.each([['storage', 0], ['storage', 1], ['barricade', 0], ['barricade', 1]] as const)('fits all four reserved beds with general plots occupied by %s at rotation %i', async (kind, rotation) => {
+    const physics = await PhysicsWorld.create(); resources.push(physics);
+    for (let step = 0; step < 180; step++) physics.step(1 / 60);
+    for (const site of BUILD_SITES) {
+      const box = buildingBox({ kind, siteId: site.id, rotation: kind === 'barricade' && site.id === 'plot-6' ? 1 : rotation })!;
+      expect(physics.canPlaceBuilding(box), site.id).toBe(true);
+      physics.activateBuildingCollider(box);
+    }
+    for (const site of BED_SITES) {
+      const box = buildingBox({ kind: 'bed', siteId: site.id, rotation })!;
+      expect(blocksCampPassage(box)).toBe(false);
+      expect(physics.canPlaceBuilding(box), site.id).toBe(true);
+      physics.activateBuildingCollider(box);
+      const from = { ...box.position, z: box.position.z - 2 };
+      expect(physics.hasLineOfSight(from, { ...from, z: box.position.z + 2 })).toBe(false);
+    }
+    for (const target of [...CAMP_PASSAGE.slice(1), { x: -12, z: 8 }, { x: -10, z: 10 }, { x: -10, z: 13 }, { x: -8, z: 13 }, { x: -5, z: 12.5 }, { x: -1, z: 12.5 }, { x: 5.5, z: 12.5 }, { x: 8, z: 11 }, { x: 11.5, z: 11 }, { x: 11.5, z: 8.5 }, { x: 11, z: 5 }, { x: 10, z: -3 }]) {
+      let reached = false;
+      for (let step = 0; step < 300; step++) {
+        const p = physics.getPlayerSnapshot().position, dx = target.x - p.x, dz = target.z - p.z, distance = Math.hypot(dx, dz);
+        if (distance < 0.12) { reached = true; break; }
+        physics.step(1 / 60, { x: dx / distance * 0.07, z: dz / distance * 0.07 });
+      }
+      expect(reached, JSON.stringify(target)).toBe(true);
+    }
+  });
   it('ignores unbuilt plots, activates a collider without advancing physics and immediately blocks rays/drop/movement', async () => {
     const physics = await PhysicsWorld.create(); resources.push(physics);
     for (let step = 0; step < 180; step++) physics.step(1 / 60);

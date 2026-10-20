@@ -55,6 +55,53 @@ async function gather() {
 }
 
 describe('ordinary workbench session with Rapier', () => {
+  it('builds a bed from ordinary harvests just before dawn, credits its ID once and preserves physical survival time', async () => {
+    const session = await gather();
+    expect(send(session, { type: 'build-workbench' }).accepted).toBe(true);
+    walk(session, 0, 0); walk(session, -1.5, 5); walk(session, -8.5, 6.5);
+    harvest(session, 'tree-04'); walk(session, -9.6, 7); pickup(session, 'tree-04');
+    walk(session, -9, 0); harvest(session, 'scrap-02'); walk(session, -9, -2); pickup(session, 'scrap-02');
+    walk(session, -9, 0); walk(session, -8, 8.5); walk(session, -5, 8.5);
+    const plan = { kind: 'bed' as const, siteId: 'bed-plot-1', rotation: 0 as const };
+    session.pause(); const paused = session.getSnapshot();
+    advance(session, 120);
+    expect(send(session, { type: 'place-building', plan }).reason).toBe('paused');
+    expect(session.getSnapshot()).toEqual(paused);
+    session.start();
+    while (session.getSnapshot().simulationTime < 240 - 1 / 60 - 1e-7) advance(session, 1);
+    const before = session.getSnapshot();
+    expect(before.clock).toMatchObject({ phase: 'night', creditedDays: 0, dayMultiplier: 1 });
+    for (let repeat = 0; repeat < 10; repeat++) expect(session.previewBuilding(plan).result.accepted).toBe(true);
+    expect(session.getSnapshot()).toEqual(before);
+    const build = { type: 'place-building' as const, plan, requestId: 'bed-at-dawn' };
+    expect(session.sendCommand(build).accepted).toBe(true);
+    const built = session.getSnapshot();
+    expect(built.gameplay.bedIds).toEqual(['build/bed-plot-1/bed/0']);
+    expect(built.clock).toMatchObject({ creditedDays: 0, physicalCycles: 0, dayMultiplier: 2 });
+    expect(built.vitals).toEqual(before.vitals);
+    expect(built.gameplay.campfire).toEqual(before.gameplay.campfire);
+    expect(built.simulationTime).toBe(before.simulationTime);
+    expect(session.sendCommand(build)).toMatchObject({ accepted: true, duplicate: true });
+    for (let request = 0; request < 513; request++) send(session, { type: 'select-slot', slot: built.gameplay.inventory.activeSlot });
+    expect(session.sendCommand(build).reason).toBe('already-built');
+    expect(session.getSnapshot().gameplay.inventory).toEqual(built.gameplay.inventory);
+    advance(session, 1);
+    const dawn = session.getSnapshot();
+    expect(dawn.clock).toMatchObject({ phase: 'day', creditedDays: 2, physicalCycles: 1, dayMultiplier: 2, lastDawnAt: 240 });
+    expect(dawn.vitals.hunger).toBeCloseTo(40);
+    expect(dawn.vitals.health).toBeCloseTo(50);
+    expect(dawn.gameplay.campfire.fuelSeconds).toBe(0);
+    expect(send(session, { type: 'place-building', plan: { ...plan, rotation: 1 } }).reason).toBe('already-built');
+    expect(send(session, { type: 'reset-player' }).accepted).toBe(true);
+    expect(session.getSnapshot().clock).toEqual(dawn.clock);
+    expect(session.getSnapshot().gameplay.bedIds).toEqual(built.gameplay.bedIds);
+    (built.gameplay.bedIds as string[]).pop();
+    expect(session.getSnapshot().gameplay.bedIds).toHaveLength(1);
+    session.destroy(); expect(() => session.getSnapshot()).not.toThrow();
+    const fresh = await setup();
+    expect(fresh.getSnapshot().gameplay.bedIds).toEqual([]);
+    expect(fresh.getSnapshot().clock.dayMultiplier).toBe(1);
+  });
   it('gathers a working storage and barricade, transfers through the addressed crate and rejects duplicate placement', async () => {
     const session = await gather();
     expect(send(session, { type: 'build-workbench' }).accepted).toBe(true);

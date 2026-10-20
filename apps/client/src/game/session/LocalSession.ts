@@ -55,7 +55,7 @@ export class LocalSession implements GameSession {
     const clockStart = this.clock.snapshot();
     const warmFor = this.gameplay.warmthDuration(dt, this.currentPlayer.position);
     this.simulationTime += dt;
-    this.clock.update(this.simulationTime);
+    this.clock.update(this.simulationTime, 1 + this.gameplay.bedIds().length);
     this.gameplay.step(dt);
     const horizontalDistance = Math.hypot(this.currentPlayer.position.x - this.previousPlayer.position.x, this.currentPlayer.position.z - this.previousPlayer.position.z);
     const sprinting = input.sprint && (motion.displacement.x !== 0 || motion.displacement.z !== 0) && horizontalDistance > SURVIVAL_CONFIG.minSprintMovementSpeed * dt;
@@ -147,7 +147,11 @@ export class LocalSession implements GameSession {
     }
     this.handledRequests.set(command.requestId, result);
     if (this.handledRequests.size > 512) this.handledRequests.delete(this.handledRequests.keys().next().value!);
-    if (result.accepted) this.syncColdEnvironment();
+    if (result.accepted) {
+      // Same-time updates change the next dawn's multiplier, never re-credit an earlier dawn.
+      this.clock.update(this.simulationTime, 1 + this.gameplay.bedIds().length);
+      this.syncColdEnvironment();
+    }
     this.publish();
     return { ...result };
   }

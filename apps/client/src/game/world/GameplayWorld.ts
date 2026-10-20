@@ -77,6 +77,7 @@ export class GameplayWorld {
   }
 
   step(dt: number): void { this.campfire.step(dt); }
+  bedIds(): string[] { return this.buildings.bedIds(); }
   warmthDuration(dt: number, position: Vector3Data): number { return this.campfire.warmthDuration(dt, position); }
   isWarm(position: Vector3Data): boolean { return this.campfire.contains(position); }
 
@@ -320,6 +321,7 @@ export class GameplayWorld {
       inventory: this.inventory.snapshot(),
       storage: { id: this.currentStorage.definition.id, inventory: this.currentStorage.snapshot(), inReach: this.storageInReach },
       buildings: this.buildings.snapshot(),
+      bedIds: this.bedIds(),
       debugTools: this.debugTools,
       equippedItem: this.inventory.equippedItem,
       bag: { wood: this.inventory.count('wood'), capacity: this.inventory.capacityFor('wood') },
