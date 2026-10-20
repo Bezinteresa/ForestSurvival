@@ -12,6 +12,8 @@ import { WORKBENCH_CONFIG, type WorkbenchLevel } from '@forest-survival/shared';
 import { Workbench, type WorkbenchPlacement } from './Workbench';
 import { CampBuilding, type BuildingQueries } from './CampBuilding';
 import { type BuildingPlan, type BuildingPreview } from '@forest-survival/shared';
+import { COOKING_POT_CONFIG } from '@forest-survival/shared';
+import { CookingPot } from './CookingPot';
 
 interface ResourceDefinition extends TreeDefinition { readonly kind: ResourceKind }
 
@@ -29,6 +31,8 @@ export class GameplayWorld {
   private currentStorage = this.storage;
   private readonly buildings = new CampBuilding();
   private readonly campfire = new Campfire();
+  private readonly cookingPot = new CookingPot();
+  private potInReach = false;
   private readonly workbench = new Workbench();
   private workbenchInReach = false;
   private campfireInReach = false;
@@ -76,10 +80,31 @@ export class GameplayWorld {
     return result;
   }
 
-  step(dt: number): void { this.campfire.step(dt); }
+  step(dt: number): void {
+    const heatedSeconds = this.campfire.warmthDuration(dt, COOKING_POT_CONFIG.position);
+    if (this.buildings.cookingPot()) this.cookingPot.step(heatedSeconds);
+    this.campfire.step(dt);
+  }
   bedIds(): string[] { return this.buildings.bedIds(); }
   warmthDuration(dt: number, position: Vector3Data): number { return this.campfire.warmthDuration(dt, position); }
   isWarm(position: Vector3Data): boolean { return this.campfire.contains(position); }
+
+  cookPot(recipeId: string, expectedBatchId: string, player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    const result = this.cookingPot.start(recipeId, expectedBatchId, this.inventory, this.buildings.cookingPot(), player, this.visibility, this.campfire.contains(COOKING_POT_CONFIG.position));
+    return this.potFeedback(result, now, 'Ингредиенты в котелке. Готовка началась.');
+  }
+
+  collectPot(expectedBatchId: string, player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    return this.potFeedback(this.cookingPot.collect(expectedBatchId, this.inventory, this.buildings.cookingPot(), player, this.visibility), now, 'Блюдо в рюкзаке.');
+  }
+
+  private potFeedback(result: CommandResult, now: number, success: string): CommandResult {
+    const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = { 'station-required': 'Сначала постройте котелок.', 'out-of-range': 'Подойдите к котелку.', blocked: 'Котелок закрыт препятствием.', stale: 'Порция изменилась. Выберите действие заново.', 'fire-out': 'Сначала разожгите костёр.', 'cooking-busy': 'Котелок занят. Заберите готовое блюдо.', 'insufficient-materials': 'Не хватает продуктов в рюкзаке. Ингредиенты сохранены.', 'nothing-cooked': 'Блюдо ещё готовится.', 'inventory-full': 'Освободите слот. Блюдо остаётся в котелке.' };
+    this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted ? success : messages[result.reason!] ?? 'Рецепт недоступен.', at: now };
+    return result;
+  }
 
   fuelFire(slot: number, expectedItemId: string, player: PlayerSnapshot, now: number): CommandResult {
     if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
@@ -111,6 +136,7 @@ export class GameplayWorld {
     this.storageInReach = false;
     this.campfireInReach = false;
     this.workbenchInReach = false;
+    this.potInReach = false;
   }
 
   buildWorkbench(player: PlayerSnapshot, now: number): CommandResult {
@@ -312,6 +338,7 @@ export class GameplayWorld {
       return { accepted: true };
     }
     if (this.interaction?.kind === 'workbench') return this.attacks.isBusy(now) ? this.reject('busy', 'Дождитесь завершения удара.', now) : this.workbench.access(player, this.visibility);
+    if (this.interaction?.kind === 'cooking-pot') return this.attacks.isBusy(now) ? this.reject('busy', 'Дождитесь завершения удара.', now) : this.cookingPot.access(this.buildings.cookingPot(), player, this.visibility);
     return this.interaction?.kind === 'pickup' ? this.pickup(this.interaction.id, player, now) : { accepted: false, reason: 'missing' };
   }
 
@@ -322,6 +349,7 @@ export class GameplayWorld {
       storage: { id: this.currentStorage.definition.id, inventory: this.currentStorage.snapshot(), inReach: this.storageInReach },
       buildings: this.buildings.snapshot(),
       bedIds: this.bedIds(),
+      cookingPot: this.cookingPot.snapshot(this.buildings.cookingPot(), this.potInReach, this.campfire.contains(COOKING_POT_CONFIG.position)),
       debugTools: this.debugTools,
       equippedItem: this.inventory.equippedItem,
       bag: { wood: this.inventory.count('wood'), capacity: this.inventory.capacityFor('wood') },
@@ -358,6 +386,8 @@ export class GameplayWorld {
     }
     this.storageInReach = this.currentStorage.canAccess(player, this.visibility);
     this.workbenchInReach = this.workbench.access(player, this.visibility).accepted;
+    const pot = this.buildings.cookingPot();
+    this.potInReach = this.cookingPot.access(pot, player, this.visibility).accepted;
     const item = selectTarget([...this.loot.values()].map((loot) => ({ id: loot.id, position: loot.position, radius: 0 })), origin, yaw, RESOURCE_CONFIG.pickupRange, Math.PI * 0.48, AXE_CONFIG.maxHeightDifference, this.visibility);
     if (item) {
       const stack = this.loot.get(item.id)!;
@@ -372,7 +402,16 @@ export class GameplayWorld {
       return;
     }
     const fire = CAMPFIRE_CONFIG;
-    if (this.campfireInReach && selectTarget([{ id: fire.id, position: { ...fire.position, y: fire.position.y + fire.targetHeight }, radius: 0 }], origin, yaw, fire.range, AXE_CONFIG.halfAngle, 1.5, this.visibility)) {
+    const stationTargets: TargetPoint[] = [];
+    if (this.campfireInReach) stationTargets.push({ id: fire.id, position: { ...fire.position, y: fire.position.y + fire.targetHeight }, radius: 0 });
+    if (pot && this.potInReach) stationTargets.push({ id: pot.id, position: pot.position, radius: 0 });
+    const stationTarget = selectTarget(stationTargets, origin, yaw, fire.range, AXE_CONFIG.halfAngle, 1.5, this.visibility);
+    if (pot && stationTarget?.id === pot.id) {
+      const cooking = this.cookingPot.snapshot(pot, true, true).cooking;
+      this.interaction = { id: pot.id, kind: 'cooking-pot', label: 'Открыть котелок' + (cooking ? cooking.ready ? ' · блюдо готово' : ' · осталось ' + Math.ceil(cooking.durationSeconds - cooking.progressSeconds) + ' с горения' : '') };
+      return;
+    }
+    if (stationTarget?.id === fire.id) {
       const snapshot = this.campfire.snapshot(player, true);
       const cooking = snapshot.cooking;
       const cookingLabel = !cooking ? '' : cooking.ready ? ' · готово: ' + ITEM_DEFINITIONS[cooking.outputItemId].label : ' · жарится ' + Math.ceil(cooking.durationSeconds - cooking.progressSeconds) + ' с';

@@ -150,7 +150,7 @@ export class GameplayView {
           this.lootGeometry ??= new THREE.BoxGeometry(0.55, 0.22, 0.28);
           let material = this.lootMaterials.get(item.itemId);
           if (!material) {
-            material = new THREE.MeshStandardMaterial({ color: { wood: 0xc69d60, stone: 0x9aa5aa, scrap: 0xb7785b, coal: 0x414953, berries: 0xc34562, 'raw-meat': 0xd9787a, 'cooked-meat': 0x8a4b2a, bandage: 0xf1ece0, medkit: 0xd23c3c }[item.itemId], roughness: 1 });
+            material = new THREE.MeshStandardMaterial({ color: { wood: 0xc69d60, stone: 0x9aa5aa, scrap: 0xb7785b, coal: 0x414953, berries: 0xc34562, 'raw-meat': 0xd9787a, 'cooked-meat': 0x8a4b2a, 'meat-soup': 0xd5a05b, bandage: 0xf1ece0, medkit: 0xd23c3c }[item.itemId], roughness: 1 });
             this.lootMaterials.set(item.itemId, material);
           }
           mesh = new THREE.Mesh(this.lootGeometry, material);
@@ -166,7 +166,7 @@ export class GameplayView {
     const selected = gameplay.interaction;
     this.campfire.update(gameplay.campfire);
     this.workbench.update(gameplay.workbench);
-    this.buildings.update(gameplay.buildings, frame.buildingPreview);
+    this.buildings.update(gameplay.buildings, frame.buildingPreview, gameplay.cookingPot);
     this.selection.visible = !!selected;
     if (selected?.kind === 'tree' || selected?.kind === 'resource') {
       const resource = gameplay.resources.find((entry) => entry.id === selected.id);
@@ -180,7 +180,7 @@ export class GameplayView {
     } else if (selected?.kind === 'workbench') {
       const { position, halfSize } = WORKBENCH_CONFIG;
       this.selection.box.setFromCenterAndSize(new THREE.Vector3(position.x, position.y, position.z), new THREE.Vector3(halfSize.x * 2, halfSize.y * 2, halfSize.z * 2));
-    } else if (selected?.kind === 'storage') {
+    } else if (selected?.kind === 'storage' || selected?.kind === 'cooking-pot') {
       const placed = gameplay.buildings.find((entry) => entry.id === selected.id);
       const position = placed?.position ?? CAMP_STORAGE.position;
       const size = placed?.halfSize ?? CAMP_STORAGE.halfSize;

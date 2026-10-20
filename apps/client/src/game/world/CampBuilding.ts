@@ -13,6 +13,7 @@ export class CampBuilding {
   storage(id: string): CampStorage | undefined { return this.storages.get(id); }
   containers(): readonly CampStorage[] { return [...this.storages.values()]; }
   bedIds(): string[] { return [...new Set(this.buildings.filter((entry) => entry.kind === 'bed').map((entry) => entry.id))].sort(); }
+  cookingPot(): BuildingSnapshot | undefined { const pot = this.buildings.find((entry) => entry.kind === 'cooking-pot'); return pot ? { ...pot, position: { ...pot.position }, halfSize: { ...pot.halfSize } } : undefined; }
   snapshot(): BuildingSnapshot[] { return this.buildings.map((entry) => ({ ...entry, position: { ...entry.position }, halfSize: { ...entry.halfSize } })); }
 
   preview(plan: BuildingPlan, bag: Inventory, player: PlayerSnapshot, level: number, queries: BuildingQueries, loot: readonly LootSnapshot[]): BuildingPreview {

@@ -12,6 +12,7 @@ export * from './campfire';
 export * from './time';
 export * from './crafting';
 export * from './building';
+export * from './cooking';
 
 export type EntityId = string;
 
@@ -60,6 +61,8 @@ export type SessionCommand = { readonly requestId: string } & (
   | { readonly type: 'drop-item'; readonly slot: number; readonly yaw: number }
   | { readonly type: 'transfer-item'; readonly direction: 'deposit' | 'withdraw'; readonly slot: number; readonly expectedItemId: string; readonly storageId?: string }
   | { readonly type: 'place-building'; readonly plan: BuildingPlan }
+  | { readonly type: 'cook-pot'; readonly recipeId: string; readonly expectedBatchId: string }
+  | { readonly type: 'collect-pot'; readonly expectedBatchId: string }
   | { readonly type: 'debug-upgrade'; readonly target: 'tool' | 'backpack'; readonly slot: number; readonly level: 2 }
   | { readonly type: 'consume-item'; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'gather'; readonly targetId: string }

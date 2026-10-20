@@ -1,12 +1,14 @@
 import type { BoxDefinition, CommandResult, Vector3Data } from './index';
 import type { MaterialCost } from './items';
+import { COOKING_POT_CONFIG } from './cooking';
 
-export type BuildingKind = 'storage' | 'barricade' | 'bed';
+export type BuildingKind = 'storage' | 'barricade' | 'bed' | 'cooking-pot';
 export interface BuildingPlan { readonly kind: BuildingKind; readonly siteId: string; readonly rotation: 0 | 1 }
 export const BUILDING_DEFINITIONS = {
   storage: { label: 'Склад', halfSize: { x: 0.6, y: 0.5, z: 0.4 }, cost: { wood: 3, scrap: 1 }, minLevel: 1, slots: 8 },
   barricade: { label: 'Баррикада', halfSize: { x: 1.2, y: 0.6, z: 0.2 }, cost: { wood: 2 }, minLevel: 2, slots: 0 },
   bed: { label: 'Кровать', halfSize: { x: 0.55, y: 0.35, z: 1 }, cost: { wood: 2, scrap: 1 }, minLevel: 1, slots: 0 },
+  'cooking-pot': { label: 'Котелок', halfSize: { x: 0.5, y: 0.5, z: 0.5 }, cost: { stone: 2, scrap: 2 }, minLevel: 1, slots: 0 },
 } as const satisfies Record<BuildingKind, { label: string; halfSize: Vector3Data; cost: MaterialCost; minLevel: number; slots: number }>;
 export const BUILDING_CONFIG = { range: 3.2, storageRange: 2.6, passageClearance: 0.4, maxCenterHeightDifference: 0.4 } as const;
 export const BUILD_SITES = [
@@ -25,9 +27,10 @@ export const BED_SITES = [
   { id: 'bed-plot-3', position: { x: 5.5, y: 0, z: 10.5 } },
   { id: 'bed-plot-4', position: { x: 8, y: 0, z: -3 } },
 ] as const;
-export const ALL_BUILD_SITES = [...BUILD_SITES, ...BED_SITES];
+export const POT_SITES = [{ id: COOKING_POT_CONFIG.siteId, position: COOKING_POT_CONFIG.position }] as const;
+export const ALL_BUILD_SITES = [...BUILD_SITES, ...BED_SITES, ...POT_SITES];
 export function buildSitesFor(kind: BuildingKind): readonly { readonly id: string; readonly position: Vector3Data }[] {
-  return kind === 'bed' ? BED_SITES : BUILD_SITES;
+  return kind === 'bed' ? BED_SITES : kind === 'cooking-pot' ? POT_SITES : BUILD_SITES;
 }
 // Author the plots around a permanent route. These separated footprints cannot
 // close an enclosure; free placement will need a navigation connectivity check.

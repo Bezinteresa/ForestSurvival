@@ -1,4 +1,4 @@
-import { BACKPACK_LEVELS, INVENTORY_CONFIG, ITEM_DEFINITIONS, isTool, type CommandResult, type InventorySnapshot, type ItemId, type ItemStack, type EquippedItemId, type UpgradeLevel, type MaterialCost } from '@forest-survival/shared';
+import { BACKPACK_LEVELS, INVENTORY_CONFIG, ITEM_DEFINITIONS, isTool, type CommandResult, type InventorySnapshot, type ItemId, type ItemStack, type EquippedItemId, type UpgradeLevel, type MaterialCost, type ItemCost } from '@forest-survival/shared';
 
 export class Inventory {
   private slots: Array<ItemStack | null>;
@@ -75,8 +75,13 @@ export class Inventory {
   }
 
   spendMaterials(cost: MaterialCost): CommandResult {
+    if (Object.keys(cost).some((itemId) => !['wood', 'stone', 'scrap', 'coal'].includes(itemId))) return { accepted: false, reason: 'invalid' };
+    return this.spendItems(cost);
+  }
+
+  spendItems(cost: ItemCost): CommandResult {
     const entries = Object.entries(cost);
-    if (!entries.length || entries.some(([itemId, amount]) => !['wood', 'stone', 'scrap', 'coal'].includes(itemId) || !Number.isSafeInteger(amount) || amount <= 0)) return { accepted: false, reason: 'invalid' };
+    if (!entries.length || entries.some(([itemId, amount]) => !Object.hasOwn(ITEM_DEFINITIONS, itemId) || !Number.isSafeInteger(amount) || amount <= 0)) return { accepted: false, reason: 'invalid' };
     const next = this.slots.map((stack) => stack ? { ...stack } : null);
     for (const [itemId, amount] of entries) {
       let remaining = amount;

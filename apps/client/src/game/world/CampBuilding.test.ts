@@ -127,6 +127,9 @@ describe('construction with live Rapier and lifecycle', () => {
       expect(physics.canPlaceBuilding(box), site.id).toBe(true);
       physics.activateBuildingCollider(box);
     }
+    const pot = buildingBox({ kind: 'cooking-pot', siteId: 'pot-plot-1', rotation })!;
+    expect(physics.canPlaceBuilding(pot)).toBe(true);
+    physics.activateBuildingCollider(pot);
     for (const site of BED_SITES) {
       const box = buildingBox({ kind: 'bed', siteId: site.id, rotation })!;
       expect(blocksCampPassage(box)).toBe(false);

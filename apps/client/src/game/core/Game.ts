@@ -169,7 +169,7 @@ export class Game {
     const frame = this.input.consumeFrame();
     const nextRequest = () => 'input-' + (++this.commandNumber);
     if (frame.pressed.has('Inventory')) this.toggleInventory();
-    else if (frame.pressed.has('Interact') && ['storage', 'workbench'].includes(session.getSnapshot().gameplay.interaction?.kind ?? '')) {
+    else if (frame.pressed.has('Interact') && ['storage', 'workbench', 'cooking-pot'].includes(session.getSnapshot().gameplay.interaction?.kind ?? '')) {
       if (session.sendCommand({ type: 'interact', requestId: nextRequest() }).accepted) this.toggleInventory();
     }
     const yaw = Math.atan2(Math.sin(this.camera.cameraYaw), -Math.cos(this.camera.cameraYaw));

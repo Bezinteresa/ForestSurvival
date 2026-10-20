@@ -19,6 +19,7 @@ export const CONSUMABLE_DEFINITIONS = {
   berries: { hunger: 25, health: 0 },
   'raw-meat': { hunger: 10, health: 0 },
   'cooked-meat': { hunger: 35, health: 15 },
+  'meat-soup': { hunger: 70, health: 25 },
   bandage: { hunger: 0, health: 25 },
   medkit: { hunger: 0, health: 60 },
 } as const satisfies Record<ConsumableId, { hunger: number; health: number }>;

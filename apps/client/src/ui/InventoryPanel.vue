@@ -3,9 +3,10 @@ import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
 import { CAMP_STORAGE, ITEM_DEFINITIONS, isTool, isConsumable, isMedical, itemLabel, type CampfireLevel, type WorkbenchLevel, type GameplaySnapshot, type InventorySnapshot } from '@forest-survival/shared';
 import CampfirePanel from './CampfirePanel.vue';
 import WorkbenchPanel from './WorkbenchPanel.vue';
+import CookingPotPanel from './CookingPotPanel.vue';
 
-const props = defineProps<{ inventory: InventorySnapshot; storage: GameplaySnapshot['storage']; campfire: GameplaySnapshot['campfire']; workbench: GameplaySnapshot['workbench']; debugTools: boolean; note: string; focusWorkbench?: boolean }>();
-const emit = defineEmits<{ close: []; beginBuilding: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; consumeItem: [slot: number]; cookItem: [slot: number]; collectCooked: []; fuelFire: [slot: number]; upgradeFire: [expectedLevel: CampfireLevel]; buildWorkbench: []; upgradeWorkbench: [expectedLevel: WorkbenchLevel]; craftItem: [recipeId: string]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
+const props = defineProps<{ inventory: InventorySnapshot; storage: GameplaySnapshot['storage']; campfire: GameplaySnapshot['campfire']; workbench: GameplaySnapshot['workbench']; cookingPot: GameplaySnapshot['cookingPot']; debugTools: boolean; note: string; focusWorkbench?: boolean; focusCookingPot?: boolean }>();
+const emit = defineEmits<{ close: []; beginBuilding: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; consumeItem: [slot: number]; cookItem: [slot: number]; collectCooked: []; cookPot: [recipeId: string]; collectPot: []; fuelFire: [slot: number]; upgradeFire: [expectedLevel: CampfireLevel]; buildWorkbench: []; upgradeWorkbench: [expectedLevel: WorkbenchLevel]; craftItem: [recipeId: string]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
 const dialog = useTemplateRef<HTMLDialogElement>('dialog');
 const selected = ref(props.inventory.activeSlot);
 const selectedStorage = ref(0);
@@ -23,6 +24,7 @@ function choose(slot: number): void {
 onMounted(() => {
   dialog.value?.showModal();
   if (props.focusWorkbench) dialog.value?.querySelector('#workbench-title')?.scrollIntoView({ block: 'start' });
+  if (props.focusCookingPot) dialog.value?.querySelector('#cooking-pot-title')?.scrollIntoView({ block: 'start' });
 });
 onBeforeUnmount(() => dialog.value?.close());
 </script>
@@ -50,6 +52,7 @@ onBeforeUnmount(() => dialog.value?.close());
       <button v-else class="button secondary" @click="movingFrom = null">Отменить перенос</button>
     </div>
     <CampfirePanel :campfire="campfire" :inventory="inventory" :selected="stack" :moving="movingFrom !== null" @fuel="emit('fuelFire', selected)" @cook="emit('cookItem', selected)" @collect="emit('collectCooked')" @upgrade="emit('upgradeFire', $event)" />
+    <CookingPotPanel :pot="cookingPot" :inventory="inventory" :moving="movingFrom !== null" @cook="emit('cookPot', $event)" @collect="emit('collectPot')" />
     <WorkbenchPanel :workbench="workbench" :inventory="inventory" :moving="movingFrom !== null" @build="emit('buildWorkbench')" @upgrade="emit('upgradeWorkbench', $event)" @craft="emit('craftItem', $event)" />
     <section class="storage-section"><h3>Постройки лагеря</h3><p class="inventory-help">Закройте рюкзак и выберите площадку в предпросмотре. До подтверждения материалы сохраняются.</p><button class="button primary" :disabled="movingFrom !== null" @click="emit('beginBuilding')">Выбрать постройку</button></section>
     <section class="storage-section" aria-labelledby="storage-title">

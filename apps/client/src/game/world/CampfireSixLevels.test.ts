@@ -93,6 +93,10 @@ describe('six-level campfire resource progression', () => {
     }
     expect(world.getSnapshot(now).bedIds).toHaveLength(4);
     expect(['wood', 'stone', 'scrap', 'coal'].map((id) => remaining(id as ItemId))).toEqual([5, 3, 2, 6]);
+    collect('stone', 2); collect('scrap', 2);
+    expect(world.placeBuilding({ kind: 'cooking-pot', siteId: 'pot-plot-1', rotation: 0 }, player, now).accepted).toBe(true);
+    expect(world.getSnapshot(now).cookingPot.built).toBe(true);
+    expect(['wood', 'stone', 'scrap', 'coal'].map((id) => remaining(id as ItemId))).toEqual([5, 1, 0, 6]);
     expect(world.isWarm({ x: 14.99, y: 0.92, z: 2.8 })).toBe(true);
     expect(world.isWarm({ x: 15.01, y: 0.92, z: 2.8 })).toBe(false);
     world.step(60);
