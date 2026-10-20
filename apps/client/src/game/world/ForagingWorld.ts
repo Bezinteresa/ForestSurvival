@@ -1,11 +1,12 @@
-import { FORAGING_CONFIG, type BerryBushDefinition, type BerryBushSnapshot, type CommandResult, type PlayerSnapshot } from '@forest-survival/shared';
+import { FORAGING_CONFIG, type ForageDefinition, type ForageSnapshot, type ForageItemId, type CommandResult, type PlayerSnapshot } from '@forest-survival/shared';
 import { selectTarget, type VisibilityQueries } from '../combat/TargetQuery';
 import type { Inventory } from '../items/Inventory';
 
 export class ForagingWorld {
-  private readonly bushes: Array<{ definition: BerryBushDefinition; remaining: number }>;
-  constructor(definitions: readonly BerryBushDefinition[]) { this.bushes = definitions.map((definition) => ({ definition, remaining: definition.stock })); }
-  snapshot(): BerryBushSnapshot[] { return this.bushes.map(({ definition, remaining }) => ({ ...definition, position: { ...definition.position }, remaining })); }
+  private readonly bushes: Array<{ definition: ForageDefinition; remaining: number }>;
+  constructor(definitions: readonly ForageDefinition[], readonly itemId: ForageItemId = 'berries') { this.bushes = definitions.map((definition) => ({ definition, remaining: definition.stock })); }
+  has(id: string): boolean { return this.bushes.some((entry) => entry.definition.id === id); }
+  snapshot(): ForageSnapshot[] { return this.bushes.map(({ definition, remaining }) => ({ ...definition, position: { ...definition.position }, remaining })); }
 
   target(player: PlayerSnapshot, yaw: number, visibility: VisibilityQueries) {
     return selectTarget(this.bushes.filter((bush) => bush.remaining > 0).map(({ definition }) => ({ id: definition.id, position: { ...definition.position, y: definition.position.y + FORAGING_CONFIG.targetHeight }, radius: 0 })), player.position, yaw, FORAGING_CONFIG.range, FORAGING_CONFIG.halfAngle, FORAGING_CONFIG.maxHeight, visibility);
@@ -17,7 +18,7 @@ export class ForagingWorld {
     const position = { ...bush.definition.position, y: bush.definition.position.y + FORAGING_CONFIG.targetHeight };
     if (Math.hypot(position.x - player.position.x, position.z - player.position.z) > FORAGING_CONFIG.range || Math.abs(position.y - player.position.y) > FORAGING_CONFIG.maxHeight) return { accepted: false, reason: 'out-of-range' };
     if (!visibility.hasLineOfSight(player.position, position, id)) return { accepted: false, reason: 'blocked' };
-    const result = inventory.insert({ id: id + '/berries/' + (bush.definition.stock - bush.remaining), itemId: 'berries', amount: 1 });
+    const result = inventory.insert({ id: id + '/' + this.itemId + '/' + (bush.definition.stock - bush.remaining), itemId: this.itemId, amount: 1 });
     if (result.accepted) bush.remaining--;
     return result;
   }

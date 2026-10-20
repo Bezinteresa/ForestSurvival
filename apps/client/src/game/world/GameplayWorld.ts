@@ -14,6 +14,7 @@ import { CampBuilding, type BuildingQueries } from './CampBuilding';
 import { type BuildingPlan, type BuildingPreview } from '@forest-survival/shared';
 import { COOKING_POT_CONFIG } from '@forest-survival/shared';
 import { CookingPot } from './CookingPot';
+import type { CarrotPatchDefinition } from '@forest-survival/shared';
 
 interface ResourceDefinition extends TreeDefinition { readonly kind: ResourceKind }
 
@@ -38,6 +39,7 @@ export class GameplayWorld {
   private campfireInReach = false;
   private lastPlayer: PlayerSnapshot = { id: PLAYER_CONFIG.id, position: { ...PLAYER_CONFIG.spawn }, grounded: false, yaw: Math.PI };
   private readonly foraging: ForagingWorld;
+  private readonly carrots: ForagingWorld;
   private storageInReach = false;
   private attackTool: { tool: ToolId; damage: number } | undefined;
   private readonly resources: Array<{ definition: ResourceDefinition; receiver: DamageReceiver }>;
@@ -47,8 +49,9 @@ export class GameplayWorld {
   private lastHit: GameplaySnapshot['lastHit'] = null;
   private interaction: InteractionSnapshot | null = null;
 
-  constructor(private readonly visibility: GameplayQueries, trees: readonly TreeDefinition[] = TEST_WORLD.trees, private readonly inventory = new Inventory(), nodes: readonly MaterialNodeDefinition[] = [], private readonly debugTools = false, bushes: readonly BerryBushDefinition[] = TEST_BERRY_BUSHES, supplies: ReadonlyArray<ItemStack & { readonly position: Vector3Data }> = []) {
+  constructor(private readonly visibility: GameplayQueries, trees: readonly TreeDefinition[] = TEST_WORLD.trees, private readonly inventory = new Inventory(), nodes: readonly MaterialNodeDefinition[] = [], private readonly debugTools = false, bushes: readonly BerryBushDefinition[] = TEST_BERRY_BUSHES, supplies: ReadonlyArray<ItemStack & { readonly position: Vector3Data }> = [], carrots: readonly CarrotPatchDefinition[] = []) {
     this.foraging = new ForagingWorld(bushes);
+    this.carrots = new ForagingWorld(carrots, 'carrot');
     for (const supply of supplies) this.loot.set(supply.id, { ...supply, position: { ...supply.position } });
     const definitions: ResourceDefinition[] = [
       ...trees.map((tree) => ({ ...tree, kind: 'tree' as const })),
@@ -221,8 +224,9 @@ export class GameplayWorld {
 
   gather(id: string, player: PlayerSnapshot, now: number): CommandResult {
     if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
-    const result = this.foraging.gather(id, player, this.inventory, this.visibility);
-    this.feedback = { kind: result.accepted ? 'pickup' : 'blocked', text: result.accepted ? '+1 · Ягоды' : result.reason === 'inventory-full' ? 'Рюкзак заполнен.' : 'Не удалось собрать ягоды. Подойдите по свободному пути.', at: now };
+    const source = this.carrots.has(id) ? this.carrots : this.foraging;
+    const result = source.gather(id, player, this.inventory, this.visibility);
+    this.feedback = { kind: result.accepted ? 'pickup' : 'blocked', text: result.accepted ? '+1 · ' + ITEM_DEFINITIONS[source.itemId].label : result.reason === 'inventory-full' ? 'Рюкзак заполнен.' : 'Не удалось собрать. Подойдите по свободному пути.', at: now };
     return result;
   }
 
@@ -329,7 +333,7 @@ export class GameplayWorld {
       if (stack && isCookable(stack.itemId)) return this.cookItem(this.inventory.selectedSlot, stack.id, player, now);
       return stack ? this.fuelFire(this.inventory.selectedSlot, stack.id, player, now) : this.reject('wrong-fuel', 'Выберите древесину или уголь.', now);
     }
-    if (this.interaction?.kind === 'bush') return this.gather(this.interaction.id, player, now);
+    if (this.interaction?.kind === 'bush' || this.interaction?.kind === 'carrot') return this.gather(this.interaction.id, player, now);
     if (this.interaction?.kind === 'storage') {
       const storage = this.interaction.id === CAMP_STORAGE.id ? this.storage : this.buildings.storage(this.interaction.id);
       if (!storage?.canAccess(player, this.visibility)) return { accepted: false, reason: 'out-of-range' };
@@ -354,6 +358,7 @@ export class GameplayWorld {
       equippedItem: this.inventory.equippedItem,
       bag: { wood: this.inventory.count('wood'), capacity: this.inventory.capacityFor('wood') },
       bushes: this.foraging.snapshot(),
+      carrots: this.carrots.snapshot(),
       campfire: this.campfire.snapshot(this.lastPlayer, this.campfireInReach),
       workbench: this.workbench.snapshot(this.workbenchInReach),
       resources: this.resources.map(({ definition, receiver }) => ({ id: definition.id, kind: definition.kind, requiredTool: RESOURCE_DEFINITIONS[definition.kind].tool, position: { ...definition.position }, radius: definition.radius, trunkHeight: definition.trunkHeight, health: receiver.currentHealth, maxHealth: receiver.maxHealth, exhausted: receiver.exhausted })),
@@ -396,6 +401,8 @@ export class GameplayWorld {
     }
     const bush = this.foraging.target(player, yaw, this.visibility);
     if (bush) { this.interaction = { id: bush.id, kind: 'bush', label: 'Собрать ягоды' }; return; }
+    const carrot = this.carrots.target(player, yaw, this.visibility);
+    if (carrot) { this.interaction = { id: carrot.id, kind: 'carrot', label: 'Собрать морковь' }; return; }
     const storageTarget = selectTarget(storages.filter((entry) => entry.canAccess(player, this.visibility)).map((entry) => ({ id: entry.definition.id, position: entry.definition.position, radius: 0 })), origin, yaw, CAMP_STORAGE.range, AXE_CONFIG.halfAngle, 1.5, this.visibility);
     if (storageTarget) {
       this.interaction = { id: storageTarget.id, kind: 'storage', label: 'Открыть склад лагеря' };

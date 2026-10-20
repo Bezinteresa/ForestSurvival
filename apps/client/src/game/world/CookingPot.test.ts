@@ -13,6 +13,26 @@ function ingredients() { return new Inventory(5, [[0, { id: 'axe', itemId: 'axe'
 function next(pot: CookingPot) { return pot.snapshot(building, true, true).nextBatchId!; }
 
 describe('cooking pot transactions', () => {
+  it('cooks three carrots from separate stacks into one stew and preserves all carrots on an incomplete price', () => {
+    const pot = new CookingPot(), first = next(pot);
+    const missing = new Inventory(5, [[0, { id: 'two-carrots', itemId: 'carrot', amount: 2 }]]), before = missing.snapshot();
+    expect(pot.start('carrot-stew', first, missing, building, player, queries, true).reason).toBe('insufficient-materials');
+    expect(missing.snapshot()).toEqual(before);
+    expect(next(pot)).toBe(first);
+    const bag = new Inventory(5, [[0, { id: 'axe', itemId: 'axe', amount: 1 }], [1, { id: 'carrot-a', itemId: 'carrot', amount: 1 }], [2, { id: 'carrot-b', itemId: 'carrot', amount: 3 }], [3, { id: 'berries', itemId: 'berries', amount: 3 }]]);
+    bag.select(2);
+    expect(pot.start('carrot-stew', first, bag, building, player, queries, true).accepted).toBe(true);
+    expect(bag.snapshot()).toMatchObject({ activeSlot: 2, slots: [{ id: 'axe', itemId: 'axe', amount: 1 }, null, { id: 'carrot-b', itemId: 'carrot', amount: 1 }, { id: 'berries', itemId: 'berries', amount: 3 }, null] });
+    pot.step(19.9);
+    expect(pot.collect(first, bag, building, player, queries).reason).toBe('nothing-cooked');
+    pot.step(0.1);
+    expect(pot.snapshot(building, true, false).cooking).toMatchObject({ outputItemId: 'carrot-stew', durationSeconds: 20, ready: true });
+    expect(pot.collect(first, new Inventory(1), building, player, queries).reason).toBe('inventory-full');
+    expect(pot.collect(first, bag, building, player, queries).accepted).toBe(true);
+    expect(bag.getStack(1)).toEqual({ id: first + '/output', itemId: 'carrot-stew', amount: 1 });
+    expect(pot.collect(first, bag, building, player, queries).reason).toBe('stale');
+    expect(bag.count('carrot-stew')).toBe(1);
+  });
   it('spends ingredients across stacks atomically and preserves leftovers, tools and the active slot', () => {
     const pot = new CookingPot(), bag = ingredients(); bag.select(3);
     expect(pot.start('meat-soup', next(pot), bag, building, player, queries, true).accepted).toBe(true);

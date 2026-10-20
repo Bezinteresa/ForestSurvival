@@ -7,6 +7,22 @@ import { PlayerVitals } from './PlayerVitals';
 function queries() { return { hasLineOfSight: vi.fn(() => true), removeEntityCollider: vi.fn(), findDropPosition: () => null }; }
 
 describe('consumable effects', () => {
+  it('distinguishes raw carrots from stew, fills hunger, caps healing and refuses wasting either food', () => {
+    const bag = new Inventory(5, [[0, { id: 'raw', itemId: 'carrot', amount: 2 }], [1, { id: 'stew', itemId: 'carrot-stew', amount: 3 }]]);
+    const world = new GameplayWorld(queries(), [], bag, [], false, []);
+    const vitals = new PlayerVitals({ health: 50, hunger: 20 });
+    expect(world.consumeItem(0, 'raw', vitals, 0).accepted).toBe(true);
+    expect(vitals.snapshot()).toMatchObject({ health: 50, hunger: 35 });
+    expect(bag.getStack(0)?.amount).toBe(1);
+    expect(world.consumeItem(1, 'stew', vitals, 0).accepted).toBe(true);
+    expect(vitals.snapshot()).toMatchObject({ health: 80, hunger: 100 });
+    expect(world.consumeItem(1, 'stew', vitals, 0).accepted).toBe(true);
+    expect(vitals.snapshot()).toMatchObject({ health: 100, hunger: 100 });
+    const before = bag.snapshot();
+    expect(world.consumeItem(1, 'stew', vitals, 0).reason).toBe('satiated');
+    expect(world.consumeItem(0, 'raw', vitals, 0).reason).toBe('satiated');
+    expect(bag.snapshot()).toEqual(before);
+  });
   it('applies hunger and healing in one use, each capped by its maximum', () => {
     const vitals = new PlayerVitals({ health: 95, hunger: 80 });
     expect(vitals.consume(CONSUMABLE_DEFINITIONS['cooked-meat'])).toBe(true);

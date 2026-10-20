@@ -5,7 +5,7 @@ import { GameplayWorld } from '../world/GameplayWorld';
 import { PhysicsWorld, interpolatePosition, type DebugGeometry } from '../world/PhysicsWorld';
 import type { GameSession } from './GameSession';
 import { WorldClock, type WorldClockSnapshot } from '@forest-survival/shared';
-import { buildingBox, type BuildingPlan, type BuildingPreview } from '@forest-survival/shared';
+import { TEST_CARROT_PATCHES, buildingBox, type BuildingPlan, type BuildingPreview } from '@forest-survival/shared';
 
 export class LocalSession implements GameSession {
   private status: SessionStatus = 'ready';
@@ -29,7 +29,7 @@ export class LocalSession implements GameSession {
   private constructor(private readonly physics: PhysicsWorld, debugTools: boolean, supplies: typeof TEST_SUPPLIES) {
     this.currentPlayer = { ...physics.getPlayerSnapshot(), yaw: Math.PI };
     this.previousPlayer = this.currentPlayer;
-    this.gameplay = new GameplayWorld(physics, TEST_WORLD.trees, undefined, TEST_MATERIAL_NODES, debugTools, TEST_BERRY_BUSHES, supplies);
+    this.gameplay = new GameplayWorld(physics, TEST_WORLD.trees, undefined, TEST_MATERIAL_NODES, debugTools, TEST_BERRY_BUSHES, supplies, TEST_CARROT_PATCHES);
     this.gameplay.update(0, this.currentPlayer, this.viewYaw);
   }
 

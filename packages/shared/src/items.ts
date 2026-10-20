@@ -2,7 +2,7 @@ export type ToolId = 'axe' | 'pickaxe';
 export type MaterialId = 'wood' | 'stone' | 'scrap' | 'coal';
 export type FuelId = 'wood' | 'coal';
 export type MaterialCost = Readonly<Partial<Record<MaterialId, number>>>;
-export type FoodId = 'berries' | 'raw-meat' | 'cooked-meat' | 'meat-soup';
+export type FoodId = 'berries' | 'raw-meat' | 'cooked-meat' | 'meat-soup' | 'carrot' | 'carrot-stew';
 export type MedicalId = 'bandage' | 'medkit';
 /** Items spent from a slot to apply hunger and/or health effects. */
 export type ConsumableId = FoodId | MedicalId;
@@ -18,6 +18,8 @@ export const ITEM_DEFINITIONS = {
   scrap: { label: 'Металлолом', stackLimit: 3 },
   coal: { label: 'Уголь', stackLimit: 3 },
   berries: { label: 'Ягоды', stackLimit: 5 },
+  carrot: { label: 'Морковь', stackLimit: 5 },
+  'carrot-stew': { label: 'Морковное рагу', stackLimit: 3 },
   'raw-meat': { label: 'Сырое мясо', stackLimit: 5 },
   'cooked-meat': { label: 'Жареное мясо', stackLimit: 5 },
   'meat-soup': { label: 'Мясная похлёбка', stackLimit: 3 },
@@ -26,7 +28,7 @@ export const ITEM_DEFINITIONS = {
 } as const satisfies Record<ItemId, { label: string; stackLimit: number }>;
 
 export function isTool(itemId: ItemId): itemId is ToolId { return itemId === 'axe' || itemId === 'pickaxe'; }
-export function isFood(itemId: ItemId): itemId is FoodId { return itemId === 'berries' || itemId === 'raw-meat' || itemId === 'cooked-meat' || itemId === 'meat-soup'; }
+export function isFood(itemId: ItemId): itemId is FoodId { return itemId === 'berries' || itemId === 'raw-meat' || itemId === 'cooked-meat' || itemId === 'meat-soup' || itemId === 'carrot' || itemId === 'carrot-stew'; }
 export function isMedical(itemId: ItemId): itemId is MedicalId { return itemId === 'bandage' || itemId === 'medkit'; }
 export function isConsumable(itemId: ItemId): itemId is ConsumableId { return isFood(itemId) || isMedical(itemId); }
 export function isFuel(itemId: ItemId): itemId is FuelId { return itemId === 'wood' || itemId === 'coal'; }

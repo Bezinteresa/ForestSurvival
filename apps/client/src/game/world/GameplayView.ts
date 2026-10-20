@@ -5,12 +5,14 @@ import { CAMPFIRE_CONFIG } from '@forest-survival/shared';
 import { CampfireView } from './CampfireView';
 import { WorkbenchView } from './WorkbenchView';
 import { CampBuildingView } from './CampBuildingView';
+import { CarrotPatchView } from './CarrotPatchView';
 import { WORKBENCH_CONFIG } from '@forest-survival/shared';
 
 export class GameplayView {
   private readonly campfire: CampfireView;
   private readonly workbench: WorkbenchView;
   private readonly buildings: CampBuildingView;
+  private readonly carrots: CarrotPatchView;
   private readonly axe = new THREE.Group();
   private readonly firstPersonAxe = new THREE.Group();
   private readonly dummy = new THREE.Group();
@@ -30,6 +32,7 @@ export class GameplayView {
     this.campfire = new CampfireView(scene, cameraObstacles);
     this.workbench = new WorkbenchView(scene, cameraObstacles);
     this.buildings = new CampBuildingView(scene, cameraObstacles);
+    this.carrots = new CarrotPatchView(scene);
     this.buildAxe(this.axe);
     this.axe.position.set(0.52, -0.05, 0.15);
     player.add(this.axe);
@@ -106,6 +109,7 @@ export class GameplayView {
 
   update(frame: GameFrame): void {
     const gameplay = frame.gameplay;
+    this.carrots.update(gameplay.carrots);
     const hasAxe = gameplay.equippedItem !== 'none';
     if (gameplay.equippedItem !== 'none') {
       this.shapeTool(this.axe, gameplay.equippedItem);
@@ -150,7 +154,7 @@ export class GameplayView {
           this.lootGeometry ??= new THREE.BoxGeometry(0.55, 0.22, 0.28);
           let material = this.lootMaterials.get(item.itemId);
           if (!material) {
-            material = new THREE.MeshStandardMaterial({ color: { wood: 0xc69d60, stone: 0x9aa5aa, scrap: 0xb7785b, coal: 0x414953, berries: 0xc34562, 'raw-meat': 0xd9787a, 'cooked-meat': 0x8a4b2a, 'meat-soup': 0xd5a05b, bandage: 0xf1ece0, medkit: 0xd23c3c }[item.itemId], roughness: 1 });
+            material = new THREE.MeshStandardMaterial({ color: { wood: 0xc69d60, stone: 0x9aa5aa, scrap: 0xb7785b, coal: 0x414953, berries: 0xc34562, carrot: 0xe88a32, 'carrot-stew': 0xdda552, 'raw-meat': 0xd9787a, 'cooked-meat': 0x8a4b2a, 'meat-soup': 0xd5a05b, bandage: 0xf1ece0, medkit: 0xd23c3c }[item.itemId], roughness: 1 });
             this.lootMaterials.set(item.itemId, material);
           }
           mesh = new THREE.Mesh(this.lootGeometry, material);
@@ -174,6 +178,9 @@ export class GameplayView {
     } else if (selected?.kind === 'bush') {
       const bush = gameplay.bushes.find((entry) => entry.id === selected.id);
       if (bush) this.selection.box.setFromCenterAndSize(new THREE.Vector3(bush.position.x, bush.position.y + 0.4, bush.position.z), new THREE.Vector3(1, 0.8, 1));
+    } else if (selected?.kind === 'carrot') {
+      const patch = gameplay.carrots.find((entry) => entry.id === selected.id);
+      if (patch) this.selection.box.setFromCenterAndSize(new THREE.Vector3(patch.position.x, patch.position.y + 0.3, patch.position.z), new THREE.Vector3(1.2, 0.6, 1.2));
     } else if (selected?.kind === 'campfire') {
       const fire = CAMPFIRE_CONFIG;
       this.selection.box.setFromCenterAndSize(new THREE.Vector3(fire.position.x, fire.position.y + 0.6, fire.position.z), new THREE.Vector3(fire.radius * 2, 1.2, fire.radius * 2));

@@ -1,4 +1,4 @@
-import type { BerryBushSnapshot } from './survival';
+import type { BerryBushSnapshot, CarrotPatchSnapshot } from './survival';
 import type { CampfireSnapshot } from './campfire';
 import type { WorkbenchSnapshot } from './crafting';
 import type { BuildingSnapshot } from './building';
@@ -46,7 +46,7 @@ export interface DummySnapshot {
 
 export interface InteractionSnapshot {
   readonly id: EntityId;
-  readonly kind: 'tree' | 'resource' | 'dummy' | 'pickup' | 'storage' | 'bush' | 'campfire' | 'workbench' | 'cooking-pot';
+  readonly kind: 'tree' | 'resource' | 'dummy' | 'pickup' | 'storage' | 'bush' | 'carrot' | 'campfire' | 'workbench' | 'cooking-pot';
   readonly label: string;
   readonly health?: number;
   readonly maxHealth?: number;
@@ -64,6 +64,7 @@ export interface GameplaySnapshot {
   readonly bag: { readonly wood: number; readonly capacity: number };
   readonly resources: readonly ResourceSnapshot[];
   readonly bushes: readonly BerryBushSnapshot[];
+  readonly carrots: readonly CarrotPatchSnapshot[];
   readonly campfire: CampfireSnapshot;
   readonly workbench: WorkbenchSnapshot;
   readonly loot: readonly LootSnapshot[];

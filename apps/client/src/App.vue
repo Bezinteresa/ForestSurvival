@@ -46,10 +46,10 @@ const materials = computed(() => {
   return totals;
 });
 const ended = computed(() => snapshot.value?.status === 'ended');
-const interactionLabel = computed(() => { const kind = gameplay.value?.interaction?.kind; return kind === 'cooking-pot' ? 'Котелок' : kind === 'workbench' ? 'Верстак' : kind === 'storage' ? 'Склад' : kind === 'bush' ? 'Собрать' : kind === 'campfire' ? campfireAction.value : 'Взять'; });
+const interactionLabel = computed(() => { const kind = gameplay.value?.interaction?.kind; return kind === 'cooking-pot' ? 'Котелок' : kind === 'workbench' ? 'Верстак' : kind === 'storage' ? 'Склад' : (kind === 'bush' || kind === 'carrot') ? 'Собрать' : kind === 'campfire' ? campfireAction.value : 'Взять'; });
 const selectedStack = computed(() => { const inventory = gameplay.value?.inventory; return inventory?.slots[inventory.activeSlot] ?? null; });
 const campfireAction = computed(() => gameplay.value?.campfire.cooking?.ready ? 'Забрать' : selectedStack.value && isCookable(selectedStack.value.itemId) ? 'Жарить' : 'Топливо');
-const canInteract = computed(() => ['pickup', 'storage', 'bush', 'campfire', 'workbench', 'cooking-pot'].includes(gameplay.value?.interaction?.kind ?? ''));
+const canInteract = computed(() => ['pickup', 'storage', 'bush', 'carrot', 'campfire', 'workbench', 'cooking-pot'].includes(gameplay.value?.interaction?.kind ?? ''));
 const primaryLabel = computed(() => { const stack = selectedStack.value; return !stack || !isConsumable(stack.itemId) ? 'Удар' : isMedical(stack.itemId) ? 'Лечить' : 'Есть'; });
 const canPlay = computed(() => active.value && !paused.value && !ended.value);
 const paused = computed(() => snapshot.value?.status === 'paused');
@@ -276,7 +276,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
     <div v-if="canPlay && !inventoryOpen && gameplay?.interaction" class="target-hint">
       <strong>{{ gameplay.interaction.label }}</strong>
       <template v-if="gameplay.interaction.health !== undefined"><span>{{ gameplay.interaction.health }} / {{ gameplay.interaction.maxHealth }}</span><progress :value="gameplay.interaction.health" :max="gameplay.interaction.maxHealth" /></template>
-      <span>{{ gameplay.interaction.kind === 'cooking-pot' ? 'E / кнопка «Котелок»' : gameplay.interaction.kind === 'workbench' ? 'E / кнопка «Верстак»' : gameplay.interaction.kind === 'campfire' ? (campfireAction === 'Топливо' ? 'E / «Топливо» · древесина или уголь' : 'E / «' + campfireAction + '»') : gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : gameplay.interaction.kind === 'bush' ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
+      <span>{{ gameplay.interaction.kind === 'cooking-pot' ? 'E / кнопка «Котелок»' : gameplay.interaction.kind === 'workbench' ? 'E / кнопка «Верстак»' : gameplay.interaction.kind === 'campfire' ? (campfireAction === 'Топливо' ? 'E / «Топливо» · древесина или уголь' : 'E / «' + campfireAction + '»') : gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : (gameplay.interaction.kind === 'bush' || gameplay.interaction.kind === 'carrot') ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
     </div>
     <p v-if="canPlay && feedback" class="game-feedback" role="status">{{ feedback }}</p>
     <div v-if="canPlay && !inventoryOpen && gameplay" class="equipment-bar" data-ui>

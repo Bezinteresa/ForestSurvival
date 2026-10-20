@@ -54,14 +54,82 @@ async function gather() {
   return session;
 }
 
+async function gatherPotPrice() {
+  const session = await gather();
+  expect(send(session, { type: 'build-workbench' }).accepted).toBe(true);
+  walk(session, 0, 0); walk(session, -1.5, 5); walk(session, -8.5, 6.5);
+  harvest(session, 'tree-04'); walk(session, -9.6, 7); pickup(session, 'tree-04');
+  walk(session, -9, 0); harvest(session, 'scrap-02'); walk(session, -9, -2); pickup(session, 'scrap-02');
+  walk(session, -8, -3); walk(session, -3, -1); walk(session, 0, 1.2);
+  return session;
+}
+
 describe('ordinary workbench session with Rapier', () => {
+  it('gathers wild carrots with E, cooks stew and preserves both foods through ordinary item operations', async () => {
+    const session = await gatherPotPrice();
+    expect(send(session, { type: 'place-building', plan: { kind: 'cooking-pot', siteId: 'pot-plot-1', rotation: 0 } }).accepted).toBe(true);
+    walk(session, -2.7, 1.4); walk(session, -3.3, 1);
+    session.step(1 / 60, { ...NEUTRAL_PLAYER_INPUT, cameraYaw: -Math.PI / 2 });
+    expect(session.getSnapshot().gameplay.interaction?.kind).toBe('carrot');
+    const gather = { type: 'interact' as const, requestId: 'wild-carrot' };
+    expect(session.sendCommand(gather).accepted).toBe(true);
+    expect(session.sendCommand(gather)).toMatchObject({ accepted: true, duplicate: true });
+    expect(session.getSnapshot().gameplay.carrots[0]?.remaining).toBe(2);
+    for (let index = 0; index < 2; index++) expect(send(session, { type: 'interact' }).accepted).toBe(true);
+    expect(send(session, { type: 'gather', targetId: 'carrots-01' }).reason).toBe('missing');
+    expect(session.getSnapshot().gameplay.carrots[0]?.remaining).toBe(0);
+    let carrot = session.getSnapshot().gameplay.inventory.slots.findIndex((item) => item?.itemId === 'carrot');
+    const rawId = session.getSnapshot().gameplay.inventory.slots[carrot]!.id;
+    expect(session.getSnapshot().gameplay.inventory.slots[carrot]).toMatchObject({ id: 'carrots-01/carrot/0', amount: 3 });
+    walk(session, -2.7, 1.4); walk(session, 0, -0.5);
+    expect(send(session, { type: 'transfer-item', direction: 'deposit', slot: carrot, expectedItemId: rawId }).accepted).toBe(true);
+    const stored = session.getSnapshot().gameplay.storage.inventory.slots.findIndex((item) => item?.id === rawId);
+    expect(send(session, { type: 'transfer-item', direction: 'withdraw', slot: stored, expectedItemId: rawId }).accepted).toBe(true);
+    carrot = session.getSnapshot().gameplay.inventory.slots.findIndex((item) => item?.id === rawId);
+    expect(send(session, { type: 'drop-item', slot: carrot, yaw: Math.PI }).accepted).toBe(true);
+    expect(send(session, { type: 'pickup', targetId: rawId }).accepted).toBe(true);
+    walk(session, 0, 1.2);
+    const fuel = session.getSnapshot().gameplay.inventory.slots.findIndex((item) => item?.itemId === 'wood');
+    expect(send(session, { type: 'fuel-fire', slot: fuel, expectedItemId: session.getSnapshot().gameplay.inventory.slots[fuel]!.id }).accepted).toBe(true);
+    walk(session, 1.6, 0.9);
+    const before = session.getSnapshot(), expectedBatchId = before.gameplay.cookingPot.nextBatchId!;
+    const cook = { type: 'cook-pot' as const, recipeId: 'carrot-stew', expectedBatchId, requestId: 'ordinary-stew' };
+    expect(session.sendCommand(cook).accepted).toBe(true);
+    expect(session.sendCommand(cook)).toMatchObject({ accepted: true, duplicate: true });
+    expect(session.getSnapshot().simulationTime).toBe(before.simulationTime);
+    expect(session.getSnapshot().gameplay.campfire).toEqual(before.gameplay.campfire);
+    expect(session.getSnapshot().gameplay.inventory.slots.some((item) => item?.itemId === 'carrot')).toBe(false);
+    advance(session, 300); session.pause();
+    const paused = session.getSnapshot(); advance(session, 300);
+    expect(session.getSnapshot()).toEqual(paused);
+    session.start(); advance(session, 900);
+    expect(session.getSnapshot().simulationTime).toBeCloseTo(before.simulationTime + 20);
+    expect(session.getSnapshot().gameplay.campfire.fuelSeconds).toBeCloseTo(before.gameplay.campfire.fuelSeconds - 20);
+    expect(session.getSnapshot().gameplay.cookingPot.cooking).toMatchObject({ outputItemId: 'carrot-stew', ready: true });
+    const collect = { type: 'collect-pot' as const, expectedBatchId, requestId: 'collect-stew' };
+    expect(session.sendCommand(collect).accepted).toBe(true);
+    expect(session.sendCommand(collect).duplicate).toBe(true);
+    let stew = session.getSnapshot().gameplay.inventory.slots.findIndex((item) => item?.itemId === 'carrot-stew');
+    const stewId = session.getSnapshot().gameplay.inventory.slots[stew]!.id;
+    expect(stewId).toBe(expectedBatchId + '/output');
+    walk(session, 0, -0.5);
+    expect(send(session, { type: 'drop-item', slot: stew, yaw: Math.PI }).accepted).toBe(true);
+    expect(send(session, { type: 'pickup', targetId: stewId }).accepted).toBe(true);
+    stew = session.getSnapshot().gameplay.inventory.slots.findIndex((item) => item?.id === stewId);
+    expect(send(session, { type: 'select-slot', slot: stew }).accepted).toBe(true);
+    const eat = { type: 'use-item' as const, yaw: 0, requestId: 'eat-stew' };
+    expect(session.sendCommand(eat).accepted).toBe(true);
+    expect(session.sendCommand(eat).duplicate).toBe(true);
+    expect(session.getSnapshot().vitals.hunger).toBe(100);
+    expect(session.getSnapshot().gameplay.attack.phase).toBe('idle');
+    expect(session.getSnapshot().gameplay.inventory.slots.some((item) => item?.itemId === 'carrot-stew')).toBe(false);
+    expect(send(session, { type: 'reset-player' }).accepted).toBe(true);
+    expect(session.getSnapshot().gameplay.carrots[0]?.remaining).toBe(0);
+    session.destroy(); expect(() => session.getSnapshot()).not.toThrow();
+    const fresh = await setup(); expect(fresh.getSnapshot().gameplay.carrots.map((patch) => patch.remaining)).toEqual([3, 3, 3, 3]);
+  });
   it('harvests, builds a pot, hunts and gathers the recipe, pauses cooking and collects one reusable food instance', async () => {
-    const session = await gather();
-    expect(send(session, { type: 'build-workbench' }).accepted).toBe(true);
-    walk(session, 0, 0); walk(session, -1.5, 5); walk(session, -8.5, 6.5);
-    harvest(session, 'tree-04'); walk(session, -9.6, 7); pickup(session, 'tree-04');
-    walk(session, -9, 0); harvest(session, 'scrap-02'); walk(session, -9, -2); pickup(session, 'scrap-02');
-    walk(session, -8, -3); walk(session, -3, -1); walk(session, 0, 1.2);
+    const session = await gatherPotPrice();
     const plan = { kind: 'cooking-pot' as const, siteId: 'pot-plot-1', rotation: 0 as const };
     const before = session.getSnapshot();
     expect(session.previewBuilding(plan).result.accepted).toBe(true);

@@ -17,6 +17,8 @@ export const SURVIVAL_CONFIG = {
  */
 export const CONSUMABLE_DEFINITIONS = {
   berries: { hunger: 25, health: 0 },
+  carrot: { hunger: 15, health: 0 },
+  'carrot-stew': { hunger: SURVIVAL_CONFIG.maxHunger, health: 30 },
   'raw-meat': { hunger: 10, health: 0 },
   'cooked-meat': { hunger: 35, health: 15 },
   'meat-soup': { hunger: 70, health: 25 },
@@ -62,12 +64,24 @@ export interface VitalsSnapshot {
   };
 }
 
-export interface BerryBushDefinition { readonly id: string; readonly position: Vector3Data; readonly stock: number }
-export interface BerryBushSnapshot extends BerryBushDefinition { readonly remaining: number }
+export type ForageItemId = 'berries' | 'carrot';
+export interface ForageDefinition { readonly id: string; readonly position: Vector3Data; readonly stock: number }
+export interface ForageSnapshot extends ForageDefinition { readonly remaining: number }
+export type BerryBushDefinition = ForageDefinition;
+export type BerryBushSnapshot = ForageSnapshot;
+export type CarrotPatchDefinition = ForageDefinition;
+export type CarrotPatchSnapshot = ForageSnapshot;
 export const FORAGING_CONFIG = { range: 2.2, halfAngle: Math.PI * 55 / 180, maxHeight: 1.25, targetHeight: 0.55 } as const;
 export const TEST_BERRY_BUSHES: readonly BerryBushDefinition[] = [
   { id: 'berries-01', position: { x: 1.2, y: 0, z: -1.3 }, stock: 3 },
   { id: 'berries-02', position: { x: -5, y: 0, z: -3 }, stock: 3 },
   { id: 'berries-03', position: { x: 6, y: 0, z: 2 }, stock: 3 },
   { id: 'berries-04', position: { x: -7, y: 0, z: 8 }, stock: 3 },
+];
+/** Finite wild patches. Replanting and growth are separate T040b rules. */
+export const TEST_CARROT_PATCHES: readonly CarrotPatchDefinition[] = [
+  { id: 'carrots-01', position: { x: -4.8, y: 0, z: 1 }, stock: 3 },
+  { id: 'carrots-02', position: { x: 2, y: 0, z: -8.5 }, stock: 3 },
+  { id: 'carrots-03', position: { x: 11.5, y: 0, z: 5.5 }, stock: 3 },
+  { id: 'carrots-04', position: { x: -11, y: 0, z: 13.5 }, stock: 3 },
 ];
