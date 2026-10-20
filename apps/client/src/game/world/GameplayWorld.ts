@@ -15,6 +15,8 @@ import { type BuildingPlan, type BuildingPreview } from '@forest-survival/shared
 import { COOKING_POT_CONFIG } from '@forest-survival/shared';
 import { CookingPot } from './CookingPot';
 import type { CarrotPatchDefinition } from '@forest-survival/shared';
+import { FARM_CONFIG } from '@forest-survival/shared';
+import { FarmWorld } from './FarmWorld';
 
 interface ResourceDefinition extends TreeDefinition { readonly kind: ResourceKind }
 
@@ -33,6 +35,8 @@ export class GameplayWorld {
   private readonly buildings = new CampBuilding();
   private readonly campfire = new Campfire();
   private readonly cookingPot = new CookingPot();
+  private readonly farms = new FarmWorld();
+  private readonly farmsInReach = new Set<string>();
   private potInReach = false;
   private readonly workbench = new Workbench();
   private workbenchInReach = false;
@@ -92,6 +96,22 @@ export class GameplayWorld {
   warmthDuration(dt: number, position: Vector3Data): number { return this.campfire.warmthDuration(dt, position); }
   isWarm(position: Vector3Data): boolean { return this.campfire.contains(position); }
 
+  plantFarm(farmId: string, expectedCycleId: string, slot: number, expectedItemId: string, player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    return this.farmFeedback(this.farms.plant(this.buildings.farm(farmId), expectedCycleId, this.inventory, slot, expectedItemId, player, this.visibility, now), now, 'Морковь посажена.');
+  }
+
+  harvestFarm(farmId: string, expectedCycleId: string, player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    return this.farmFeedback(this.farms.harvest(this.buildings.farm(farmId), expectedCycleId, this.inventory, player, this.visibility, now), now, 'Морковь: +' + FARM_CONFIG.harvestAmount);
+  }
+
+  private farmFeedback(result: CommandResult, now: number, success: string): CommandResult {
+    const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = { missing: 'Грядка не найдена.', 'out-of-range': 'Подойдите к грядке.', blocked: 'Грядка закрыта препятствием.', stale: 'Грядка или предмет изменились. Выберите действие заново.', 'wrong-seed': 'Для посадки нужна морковь.', 'farm-busy': 'Грядка уже занята. Дождитесь урожая и соберите его.', 'not-grown': 'Морковь ещё растёт.', 'inventory-full': 'Освободите место для всего урожая. Морковь остаётся на грядке.' };
+    this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted ? success : messages[result.reason!] ?? 'Действие недоступно.', at: now };
+    return result;
+  }
+
   cookPot(recipeId: string, expectedBatchId: string, player: PlayerSnapshot, now: number): CommandResult {
     if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
     const result = this.cookingPot.start(recipeId, expectedBatchId, this.inventory, this.buildings.cookingPot(), player, this.visibility, this.campfire.contains(COOKING_POT_CONFIG.position));
@@ -140,6 +160,7 @@ export class GameplayWorld {
     this.campfireInReach = false;
     this.workbenchInReach = false;
     this.potInReach = false;
+    this.farmsInReach.clear();
   }
 
   buildWorkbench(player: PlayerSnapshot, now: number): CommandResult {
@@ -343,6 +364,7 @@ export class GameplayWorld {
     }
     if (this.interaction?.kind === 'workbench') return this.attacks.isBusy(now) ? this.reject('busy', 'Дождитесь завершения удара.', now) : this.workbench.access(player, this.visibility);
     if (this.interaction?.kind === 'cooking-pot') return this.attacks.isBusy(now) ? this.reject('busy', 'Дождитесь завершения удара.', now) : this.cookingPot.access(this.buildings.cookingPot(), player, this.visibility);
+    if (this.interaction?.kind === 'farm') return this.attacks.isBusy(now) ? this.reject('busy', 'Дождитесь завершения удара.', now) : this.farms.access(this.buildings.farm(this.interaction.id), player, this.visibility);
     return this.interaction?.kind === 'pickup' ? this.pickup(this.interaction.id, player, now) : { accepted: false, reason: 'missing' };
   }
 
@@ -354,6 +376,7 @@ export class GameplayWorld {
       buildings: this.buildings.snapshot(),
       bedIds: this.bedIds(),
       cookingPot: this.cookingPot.snapshot(this.buildings.cookingPot(), this.potInReach, this.campfire.contains(COOKING_POT_CONFIG.position)),
+      farms: this.farms.snapshot(this.buildings.farms(), now, this.farmsInReach),
       debugTools: this.debugTools,
       equippedItem: this.inventory.equippedItem,
       bag: { wood: this.inventory.count('wood'), capacity: this.inventory.capacityFor('wood') },
@@ -393,6 +416,9 @@ export class GameplayWorld {
     this.workbenchInReach = this.workbench.access(player, this.visibility).accepted;
     const pot = this.buildings.cookingPot();
     this.potInReach = this.cookingPot.access(pot, player, this.visibility).accepted;
+    const farms = this.buildings.farms();
+    this.farmsInReach.clear();
+    for (const farm of farms) if (this.farms.access(farm, player, this.visibility).accepted) this.farmsInReach.add(farm.id);
     const item = selectTarget([...this.loot.values()].map((loot) => ({ id: loot.id, position: loot.position, radius: 0 })), origin, yaw, RESOURCE_CONFIG.pickupRange, Math.PI * 0.48, AXE_CONFIG.maxHeightDifference, this.visibility);
     if (item) {
       const stack = this.loot.get(item.id)!;
@@ -403,6 +429,8 @@ export class GameplayWorld {
     if (bush) { this.interaction = { id: bush.id, kind: 'bush', label: 'Собрать ягоды' }; return; }
     const carrot = this.carrots.target(player, yaw, this.visibility);
     if (carrot) { this.interaction = { id: carrot.id, kind: 'carrot', label: 'Собрать морковь' }; return; }
+    const farmTarget = selectTarget(farms.filter((farm) => this.farmsInReach.has(farm.id)).map((farm) => ({ id: farm.id, position: farm.position, radius: 0 })), origin, yaw, FARM_CONFIG.range, AXE_CONFIG.halfAngle, 1.5, this.visibility);
+    if (farmTarget) { this.interaction = { id: farmTarget.id, kind: 'farm', label: 'Открыть грядку' }; return; }
     const storageTarget = selectTarget(storages.filter((entry) => entry.canAccess(player, this.visibility)).map((entry) => ({ id: entry.definition.id, position: entry.definition.position, radius: 0 })), origin, yaw, CAMP_STORAGE.range, AXE_CONFIG.halfAngle, 1.5, this.visibility);
     if (storageTarget) {
       this.interaction = { id: storageTarget.id, kind: 'storage', label: 'Открыть склад лагеря' };

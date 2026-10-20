@@ -3,6 +3,7 @@ import type { CampfireSnapshot } from './campfire';
 import type { WorkbenchSnapshot } from './crafting';
 import type { BuildingSnapshot } from './building';
 import type { CookingPotSnapshot } from './cooking';
+import type { FarmSnapshot } from './farming';
 import type { EntityId, Vector3Data } from './index';
 import { TOOL_DAMAGE, TOOL_LEVELS, type InventorySnapshot, type ItemStack, type ToolId } from './items';
 
@@ -46,7 +47,7 @@ export interface DummySnapshot {
 
 export interface InteractionSnapshot {
   readonly id: EntityId;
-  readonly kind: 'tree' | 'resource' | 'dummy' | 'pickup' | 'storage' | 'bush' | 'carrot' | 'campfire' | 'workbench' | 'cooking-pot';
+  readonly kind: 'tree' | 'resource' | 'dummy' | 'pickup' | 'storage' | 'bush' | 'carrot' | 'campfire' | 'workbench' | 'cooking-pot' | 'farm';
   readonly label: string;
   readonly health?: number;
   readonly maxHealth?: number;
@@ -59,6 +60,7 @@ export interface GameplaySnapshot {
   /** Existing beds contributing to the next dawn. Derived from buildings, never incremented by a request. */
   readonly bedIds: readonly string[];
   readonly cookingPot: CookingPotSnapshot;
+  readonly farms: readonly FarmSnapshot[];
   readonly debugTools: boolean;
   readonly equippedItem: EquippedItemId;
   readonly bag: { readonly wood: number; readonly capacity: number };

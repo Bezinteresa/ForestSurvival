@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BED_SITES, BUILD_SITES, CAMPFIRE_LEVELS, TEST_MATERIAL_NODES, TEST_WORLD, type ItemId, type PlayerSnapshot } from '@forest-survival/shared';
+import { BED_SITES, BUILD_SITES, FARM_SITES, CAMPFIRE_LEVELS, TEST_MATERIAL_NODES, TEST_WORLD, type ItemId, type PlayerSnapshot } from '@forest-survival/shared';
 import { Inventory } from '../items/Inventory';
 import { GameplayWorld } from './GameplayWorld';
 
@@ -97,6 +97,12 @@ describe('six-level campfire resource progression', () => {
     expect(world.placeBuilding({ kind: 'cooking-pot', siteId: 'pot-plot-1', rotation: 0 }, player, now).accepted).toBe(true);
     expect(world.getSnapshot(now).cookingPot.built).toBe(true);
     expect(['wood', 'stone', 'scrap', 'coal'].map((id) => remaining(id as ItemId))).toEqual([5, 1, 0, 6]);
+    for (const site of FARM_SITES) {
+      collect('wood', 2);
+      expect(world.placeBuilding({ kind: 'farm', siteId: site.id, rotation: 0 }, { ...player, position: { ...site.position, y: 0.92, z: site.position.z - 2 } }, now).accepted).toBe(true);
+    }
+    expect(world.getSnapshot(now).farms).toHaveLength(2);
+    expect(['wood', 'stone', 'scrap', 'coal'].map((id) => remaining(id as ItemId))).toEqual([1, 1, 0, 6]);
     expect(world.isWarm({ x: 14.99, y: 0.92, z: 2.8 })).toBe(true);
     expect(world.isWarm({ x: 15.01, y: 0.92, z: 2.8 })).toBe(false);
     world.step(60);

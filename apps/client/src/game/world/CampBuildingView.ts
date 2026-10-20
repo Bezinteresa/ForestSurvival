@@ -32,6 +32,12 @@ export class CampBuildingView {
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), surface); mesh.position.set(x, y, z); root.add(mesh); this.obstacles.push(mesh);
       };
       if (entry.kind === 'storage') { const size = BUILDING_DEFINITIONS.storage.halfSize; add(0, size.y, 0, size.x * 2, size.y * 2, size.z * 2); }
+      else if (entry.kind === 'farm') {
+        const soil = new THREE.MeshStandardMaterial({ color: 0x66503a, roughness: 1 });
+        add(0, 0.1, 0, 1.6, 0.2, 1.1, soil);
+        for (const x of [-0.85, 0.85]) add(x, 0.12, 0, 0.1, 0.24, 1.3);
+        for (const z of [-0.6, 0.6]) add(0, 0.12, z, 1.6, 0.24, 0.1);
+      }
       else if (entry.kind === 'cooking-pot') {
         for (const x of [-0.3, 0.3]) add(x, 0.2, 0, 0.15, 0.4, 0.7);
         const metal = new THREE.MeshStandardMaterial({ color: 0x333c42, roughness: 0.7, metalness: 0.5, side: THREE.DoubleSide });

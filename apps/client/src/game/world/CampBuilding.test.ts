@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BED_SITES, BUILD_SITES, CAMP_PASSAGE, buildingBox, blocksCampPassage, type BuildingPlan, type PlayerSnapshot } from '@forest-survival/shared';
+import { BED_SITES, BUILD_SITES, FARM_SITES, CAMP_PASSAGE, buildingBox, blocksCampPassage, type BuildingPlan, type PlayerSnapshot } from '@forest-survival/shared';
 import { Inventory } from '../items/Inventory';
 import { CampBuilding } from './CampBuilding';
 import { PhysicsWorld } from './PhysicsWorld';
@@ -138,7 +138,13 @@ describe('construction with live Rapier and lifecycle', () => {
       const from = { ...box.position, z: box.position.z - 2 };
       expect(physics.hasLineOfSight(from, { ...from, z: box.position.z + 2 })).toBe(false);
     }
-    for (const target of [...CAMP_PASSAGE.slice(1), { x: -12, z: 8 }, { x: -10, z: 10 }, { x: -10, z: 13 }, { x: -8, z: 13 }, { x: -5, z: 12.5 }, { x: -1, z: 12.5 }, { x: 5.5, z: 12.5 }, { x: 8, z: 11 }, { x: 11.5, z: 11 }, { x: 11.5, z: 8.5 }, { x: 11, z: 5 }, { x: 10, z: -3 }]) {
+    for (const site of FARM_SITES) {
+      const box = buildingBox({ kind: 'farm', siteId: site.id, rotation })!;
+      expect(blocksCampPassage(box)).toBe(false);
+      expect(physics.canPlaceBuilding(box), site.id).toBe(true);
+      physics.activateBuildingCollider(box);
+    }
+    for (const target of [...CAMP_PASSAGE.slice(1), { x: -12, z: 8 }, { x: -10, z: 10 }, { x: -10, z: 13 }, { x: -8, z: 13 }, { x: -5, z: 12.5 }, { x: -1, z: 12.5 }, { x: 1, z: 12 }, { x: 5.5, z: 12.5 }, { x: 8, z: 11 }, { x: 11.5, z: 11 }, { x: 11.5, z: 8.5 }, { x: 11, z: 5 }, { x: 10, z: -3 }]) {
       let reached = false;
       for (let step = 0; step < 300; step++) {
         const p = physics.getPlayerSnapshot().position, dx = target.x - p.x, dz = target.z - p.z, distance = Math.hypot(dx, dz);

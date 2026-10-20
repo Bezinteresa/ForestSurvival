@@ -6,7 +6,7 @@ export class CarrotPatchView {
   private readonly patches = new Map<string, THREE.Group[]>();
   constructor(private readonly scene: THREE.Scene) {}
 
-  update(patches: readonly CarrotPatchSnapshot[]): void {
+  update(patches: readonly (CarrotPatchSnapshot & { readonly growth?: number })[]): void {
     for (const patch of patches) {
       let plants = this.patches.get(patch.id);
       if (!plants) {
@@ -33,7 +33,7 @@ export class CarrotPatchView {
         }
         this.scene.add(root); this.patches.set(patch.id, plants);
       }
-      plants.forEach((plant, index) => { plant.visible = index < patch.remaining; });
+      plants.forEach((plant, index) => { plant.visible = index < patch.remaining; plant.scale.setScalar(patch.growth ?? 1); });
     }
   }
 }

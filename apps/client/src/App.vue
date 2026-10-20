@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef } from 'vue';
-import { DIAGNOSTIC_SPEEDS, itemLabel, isConsumable, isCookable, isMedical, type CampfireLevel, type WorkbenchLevel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
+import { DIAGNOSTIC_SPEEDS, FARM_CONFIG, itemLabel, isConsumable, isCookable, isMedical, type CampfireLevel, type WorkbenchLevel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
 import type { Game } from './game/core/Game';
 import type { InputState } from './game/input/InputState';
 import type { ControlStatus } from './game/input/BrowserInput';
@@ -46,10 +46,10 @@ const materials = computed(() => {
   return totals;
 });
 const ended = computed(() => snapshot.value?.status === 'ended');
-const interactionLabel = computed(() => { const kind = gameplay.value?.interaction?.kind; return kind === 'cooking-pot' ? 'Котелок' : kind === 'workbench' ? 'Верстак' : kind === 'storage' ? 'Склад' : (kind === 'bush' || kind === 'carrot') ? 'Собрать' : kind === 'campfire' ? campfireAction.value : 'Взять'; });
+const interactionLabel = computed(() => { const kind = gameplay.value?.interaction?.kind; return kind === 'farm' ? 'Грядка' : kind === 'cooking-pot' ? 'Котелок' : kind === 'workbench' ? 'Верстак' : kind === 'storage' ? 'Склад' : (kind === 'bush' || kind === 'carrot') ? 'Собрать' : kind === 'campfire' ? campfireAction.value : 'Взять'; });
 const selectedStack = computed(() => { const inventory = gameplay.value?.inventory; return inventory?.slots[inventory.activeSlot] ?? null; });
 const campfireAction = computed(() => gameplay.value?.campfire.cooking?.ready ? 'Забрать' : selectedStack.value && isCookable(selectedStack.value.itemId) ? 'Жарить' : 'Топливо');
-const canInteract = computed(() => ['pickup', 'storage', 'bush', 'carrot', 'campfire', 'workbench', 'cooking-pot'].includes(gameplay.value?.interaction?.kind ?? ''));
+const canInteract = computed(() => ['pickup', 'storage', 'bush', 'carrot', 'campfire', 'workbench', 'cooking-pot', 'farm'].includes(gameplay.value?.interaction?.kind ?? ''));
 const primaryLabel = computed(() => { const stack = selectedStack.value; return !stack || !isConsumable(stack.itemId) ? 'Удар' : isMedical(stack.itemId) ? 'Лечить' : 'Есть'; });
 const canPlay = computed(() => active.value && !paused.value && !ended.value);
 const paused = computed(() => snapshot.value?.status === 'paused');
@@ -145,6 +145,9 @@ function reportInventory(result?: CommandResult): void {
     forbidden: 'Режим разработки отключён.',
     satiated: 'Эффект не нужен: вы сыты. Предмет сохранён.',
     'full-health': 'Здоровье уже полное. Предмет сохранён.',
+    'wrong-seed': 'Для посадки нужна морковь.',
+    'farm-busy': 'Грядка занята. Соберите урожай перед новой посадкой.',
+    'not-grown': 'Морковь ещё растёт.',
     'not-cookable': 'Этот предмет нельзя приготовить.',
     'cooking-busy': 'Место готовки уже занято.',
     'nothing-cooked': 'Еда ещё не готова.',
@@ -204,6 +207,16 @@ function fuelFire(slot: number): void {
   reportInventory(result);
   if (result?.reason === 'blocked') inventoryNote.value = 'Костёр закрыт препятствием.';
   if (result?.reason === 'out-of-range') inventoryNote.value = 'Подойдите к костру.';
+}
+function plantFarm(farmId: string): void {
+  const farm = gameplay.value?.farms.find((entry) => entry.id === farmId);
+  const slot = gameplay.value?.inventory.slots.findIndex((item) => item?.itemId === 'carrot' && item.amount >= FARM_CONFIG.seedCost) ?? -1;
+  const seed = gameplay.value?.inventory.slots[slot];
+  if (farm && seed) reportInventory(game?.sendCommand({ type: 'plant-farm', farmId, expectedCycleId: farm.nextCycleId, slot, expectedItemId: seed.id, requestId: 'ui-' + (++requestNumber) }));
+}
+function harvestFarm(farmId: string): void {
+  const farm = gameplay.value?.farms.find((entry) => entry.id === farmId);
+  if (farm?.crop) reportInventory(game?.sendCommand({ type: 'harvest-farm', farmId, expectedCycleId: farm.crop.id, requestId: 'ui-' + (++requestNumber) }));
 }
 function cookPot(recipeId: string): void {
   const expectedBatchId = gameplay.value?.cookingPot.nextBatchId;
@@ -276,7 +289,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
     <div v-if="canPlay && !inventoryOpen && gameplay?.interaction" class="target-hint">
       <strong>{{ gameplay.interaction.label }}</strong>
       <template v-if="gameplay.interaction.health !== undefined"><span>{{ gameplay.interaction.health }} / {{ gameplay.interaction.maxHealth }}</span><progress :value="gameplay.interaction.health" :max="gameplay.interaction.maxHealth" /></template>
-      <span>{{ gameplay.interaction.kind === 'cooking-pot' ? 'E / кнопка «Котелок»' : gameplay.interaction.kind === 'workbench' ? 'E / кнопка «Верстак»' : gameplay.interaction.kind === 'campfire' ? (campfireAction === 'Топливо' ? 'E / «Топливо» · древесина или уголь' : 'E / «' + campfireAction + '»') : gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : (gameplay.interaction.kind === 'bush' || gameplay.interaction.kind === 'carrot') ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
+      <span>{{ gameplay.interaction.kind === 'farm' ? 'E / кнопка «Грядка»' : gameplay.interaction.kind === 'cooking-pot' ? 'E / кнопка «Котелок»' : gameplay.interaction.kind === 'workbench' ? 'E / кнопка «Верстак»' : gameplay.interaction.kind === 'campfire' ? (campfireAction === 'Топливо' ? 'E / «Топливо» · древесина или уголь' : 'E / «' + campfireAction + '»') : gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : (gameplay.interaction.kind === 'bush' || gameplay.interaction.kind === 'carrot') ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
     </div>
     <p v-if="canPlay && feedback" class="game-feedback" role="status">{{ feedback }}</p>
     <div v-if="canPlay && !inventoryOpen && gameplay" class="equipment-bar" data-ui>
@@ -284,7 +297,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
       <progress v-if="gameplay.attack.phase !== 'idle'" :value="gameplay.attack.progress" max="1" aria-label="Восстановление после удара" />
     </div>
     <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen && !buildingPlan" :camera-locked="controls.cameraLocked" :can-interact="canInteract" :interaction-label="interactionLabel" :primary-label="primaryLabel" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
-    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :workbench="gameplay.workbench" :cooking-pot="gameplay.cookingPot" :focus-cooking-pot="gameplay.interaction?.kind === 'cooking-pot'" :focus-workbench="gameplay.interaction?.kind === 'workbench'" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @begin-building="beginBuilding" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @cook-item="cookItem" @collect-cooked="collectCooked" @cook-pot="cookPot" @collect-pot="collectPot" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @build-workbench="buildWorkbench" @upgrade-workbench="upgradeWorkbench" @craft-item="craftItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
+    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :workbench="gameplay.workbench" :cooking-pot="gameplay.cookingPot" :farms="gameplay.farms" :focus-farm="gameplay.interaction?.kind === 'farm'" :focus-cooking-pot="gameplay.interaction?.kind === 'cooking-pot'" :focus-workbench="gameplay.interaction?.kind === 'workbench'" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @begin-building="beginBuilding" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @cook-item="cookItem" @collect-cooked="collectCooked" @cook-pot="cookPot" @collect-pot="collectPot" @plant-farm="plantFarm" @harvest-farm="harvestFarm" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @build-workbench="buildWorkbench" @upgrade-workbench="upgradeWorkbench" @craft-item="craftItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
     <CampBuildingPanel v-if="canPlay && buildingPlan && snapshot" :plan="buildingPlan" :preview="buildingPreview" :player="snapshot.player" :bed-count="snapshot.gameplay.bedIds.length" :note="inventoryNote" @change="changeBuilding" @place="placeBuilding" @cancel="cancelBuilding" />
     <PlayerStatus v-if="canPlay && snapshot" :vitals="snapshot.vitals" />
     <RunResult v-if="ended && snapshot" :vitals="snapshot.vitals" :clock="snapshot.clock" :elapsed="elapsed" @restart="start" @leave="stop" />

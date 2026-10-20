@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMP_STORAGE, TEST_MATERIAL_NODES, TEST_BERRY_BUSHES, TRAINING_DUMMY, isTool, type ToolId, type ItemId } from '@forest-survival/shared';
+import { CAMP_STORAGE, FARM_CONFIG, TEST_MATERIAL_NODES, TEST_BERRY_BUSHES, TRAINING_DUMMY, isTool, type ToolId, type ItemId } from '@forest-survival/shared';
 import type { GameFrame } from '../core/GameView';
 import { CAMPFIRE_CONFIG } from '@forest-survival/shared';
 import { CampfireView } from './CampfireView';
@@ -13,6 +13,7 @@ export class GameplayView {
   private readonly workbench: WorkbenchView;
   private readonly buildings: CampBuildingView;
   private readonly carrots: CarrotPatchView;
+  private readonly farmPlants: CarrotPatchView;
   private readonly axe = new THREE.Group();
   private readonly firstPersonAxe = new THREE.Group();
   private readonly dummy = new THREE.Group();
@@ -33,6 +34,7 @@ export class GameplayView {
     this.workbench = new WorkbenchView(scene, cameraObstacles);
     this.buildings = new CampBuildingView(scene, cameraObstacles);
     this.carrots = new CarrotPatchView(scene);
+    this.farmPlants = new CarrotPatchView(scene);
     this.buildAxe(this.axe);
     this.axe.position.set(0.52, -0.05, 0.15);
     player.add(this.axe);
@@ -110,6 +112,7 @@ export class GameplayView {
   update(frame: GameFrame): void {
     const gameplay = frame.gameplay;
     this.carrots.update(gameplay.carrots);
+    this.farmPlants.update(gameplay.farms.map((farm) => ({ id: farm.id, position: { ...farm.position, y: farm.position.y + 0.12 }, stock: FARM_CONFIG.harvestAmount, remaining: farm.crop ? FARM_CONFIG.harvestAmount : 0, growth: farm.crop ? 0.15 + 0.85 * farm.crop.progressSeconds / farm.crop.durationSeconds : 0 })));
     const hasAxe = gameplay.equippedItem !== 'none';
     if (gameplay.equippedItem !== 'none') {
       this.shapeTool(this.axe, gameplay.equippedItem);
@@ -187,7 +190,7 @@ export class GameplayView {
     } else if (selected?.kind === 'workbench') {
       const { position, halfSize } = WORKBENCH_CONFIG;
       this.selection.box.setFromCenterAndSize(new THREE.Vector3(position.x, position.y, position.z), new THREE.Vector3(halfSize.x * 2, halfSize.y * 2, halfSize.z * 2));
-    } else if (selected?.kind === 'storage' || selected?.kind === 'cooking-pot') {
+    } else if (selected?.kind === 'storage' || selected?.kind === 'cooking-pot' || selected?.kind === 'farm') {
       const placed = gameplay.buildings.find((entry) => entry.id === selected.id);
       const position = placed?.position ?? CAMP_STORAGE.position;
       const size = placed?.halfSize ?? CAMP_STORAGE.halfSize;

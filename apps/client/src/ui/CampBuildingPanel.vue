@@ -29,7 +29,7 @@ const reasons: Record<string, string> = { 'station-required': 'Сначала п
       <button class="button secondary" @click="emit('change', { ...plan, rotation: plan.rotation === 0 ? 1 : 0 })">Повернуть · {{ plan.rotation * 90 }}°</button>
     </div>
     <div class="inventory-actions"><button v-for="(site, index) in sites" :key="site.id" class="button secondary" :aria-pressed="plan.siteId === site.id" @click="emit('change', { ...plan, siteId: site.id })">{{ index + 1 }}</button></div>
-    <p class="inventory-help">{{ BUILDING_DEFINITIONS[plan.kind].label }} · площадка {{ sites.findIndex((site) => site.id === plan.siteId) + 1 }} · {{ plan.kind === 'storage' ? '8 пустых слотов' : plan.kind === 'bed' ? '+1 к множителю дней' : plan.kind === 'cooking-pot' ? 'Готовка блюд на тепле костра' : 'Преграда для прохода' }}</p>
+    <p class="inventory-help">{{ BUILDING_DEFINITIONS[plan.kind].label }} · площадка {{ sites.findIndex((site) => site.id === plan.siteId) + 1 }} · {{ plan.kind === 'storage' ? '8 пустых слотов' : plan.kind === 'bed' ? '+1 к множителю дней' : plan.kind === 'cooking-pot' ? 'Готовка блюд на тепле костра' : plan.kind === 'farm' ? 'Посадка и выращивание моркови' : 'Преграда для прохода' }}</p>
     <ul class="campfire-price"><li v-for="(amount, material) in preview?.cost" :key="material">{{ ITEM_DEFINITIONS[material as MaterialId].label }} ×{{ amount }}</li></ul>
     <p class="inventory-status" role="status">{{ note || (preview?.result.accepted ? 'Место свободно. Материалы спишутся после подтверждения.' : reasons[preview?.result.reason ?? 'invalid']) }}</p>
     <button class="button primary" :disabled="!preview?.result.accepted" @click="emit('place')">Построить</button>
