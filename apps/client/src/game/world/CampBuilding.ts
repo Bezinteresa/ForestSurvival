@@ -16,6 +16,8 @@ export class CampBuilding {
   cookingPot(): BuildingSnapshot | undefined { const pot = this.buildings.find((entry) => entry.kind === 'cooking-pot'); return pot ? { ...pot, position: { ...pot.position }, halfSize: { ...pot.halfSize } } : undefined; }
   farms(): BuildingSnapshot[] { return this.snapshot().filter((entry) => entry.kind === 'farm'); }
   farm(id: string): BuildingSnapshot | undefined { return this.farms().find((entry) => entry.id === id); }
+  traps(): BuildingSnapshot[] { return this.snapshot().filter((entry) => entry.kind === 'rabbit-trap'); }
+  trap(id: string): BuildingSnapshot | undefined { return this.traps().find((entry) => entry.id === id); }
   snapshot(): BuildingSnapshot[] { return this.buildings.map((entry) => ({ ...entry, position: { ...entry.position }, halfSize: { ...entry.halfSize } })); }
 
   preview(plan: BuildingPlan, bag: Inventory, player: PlayerSnapshot, level: number, queries: BuildingQueries, loot: readonly LootSnapshot[]): BuildingPreview {

@@ -11,6 +11,7 @@ import InventoryPanel from './ui/InventoryPanel.vue';
 import PlayerStatus from './ui/PlayerStatus.vue';
 import RunResult from './ui/RunResult.vue';
 import WorldClockHud from './ui/WorldClockHud.vue';
+import MapPanel from './ui/MapPanel.vue';
 import CampBuildingPanel from './ui/CampBuildingPanel.vue';
 import { BUILD_SITES, type BuildingPlan } from '@forest-survival/shared';
 
@@ -47,10 +48,10 @@ const materials = computed(() => {
   return totals;
 });
 const ended = computed(() => snapshot.value?.status === 'ended');
-const interactionLabel = computed(() => { const kind = gameplay.value?.interaction?.kind; return kind === 'farm' ? 'Грядка' : kind === 'cooking-pot' ? 'Котелок' : kind === 'workbench' ? 'Верстак' : kind === 'storage' ? 'Склад' : (kind === 'bush' || kind === 'carrot') ? 'Собрать' : kind === 'campfire' ? campfireAction.value : 'Взять'; });
+const interactionLabel = computed(() => { const kind = gameplay.value?.interaction?.kind; return kind === 'rabbit-trap' ? 'Ловушка' : kind === 'farm' ? 'Грядка' : kind === 'cooking-pot' ? 'Котелок' : kind === 'workbench' ? 'Верстак' : kind === 'storage' ? 'Склад' : (kind === 'bush' || kind === 'carrot') ? 'Собрать' : kind === 'campfire' ? campfireAction.value : 'Взять'; });
 const selectedStack = computed(() => { const inventory = gameplay.value?.inventory; return inventory?.slots[inventory.activeSlot] ?? null; });
 const campfireAction = computed(() => gameplay.value?.campfire.cooking?.ready ? 'Забрать' : selectedStack.value && isCookable(selectedStack.value.itemId) ? 'Жарить' : 'Топливо');
-const canInteract = computed(() => ['pickup', 'storage', 'bush', 'carrot', 'campfire', 'workbench', 'cooking-pot', 'farm'].includes(gameplay.value?.interaction?.kind ?? ''));
+const canInteract = computed(() => ['pickup', 'storage', 'bush', 'carrot', 'campfire', 'workbench', 'cooking-pot', 'farm', 'rabbit-trap'].includes(gameplay.value?.interaction?.kind ?? ''));
 const primaryLabel = computed(() => { const stack = selectedStack.value; return !stack || !isConsumable(stack.itemId) ? 'Удар' : isMedical(stack.itemId) ? 'Лечить' : 'Есть'; });
 const canPlay = computed(() => active.value && !paused.value && !ended.value);
 const paused = computed(() => snapshot.value?.status === 'paused');
@@ -148,6 +149,7 @@ function reportInventory(result?: CommandResult): void {
     satiated: 'Эффект не нужен: вы сыты. Предмет сохранён.',
     'full-health': 'Здоровье уже полное. Предмет сохранён.',
     'wrong-seed': 'Для посадки нужна морковь.',
+    'trap-empty': 'Ловушка пока пуста.',
     'farm-busy': 'Грядка занята. Соберите урожай перед новой посадкой.',
     'not-grown': 'Морковь ещё растёт.',
     'not-cookable': 'Этот предмет нельзя приготовить.',
@@ -260,7 +262,37 @@ const touchPortrait = ref(false);
 const stopOrientationWatch = watchTouchPortrait((portrait) => { touchPortrait.value = portrait; });
 watch([touchPortrait, canPlay], ([portrait, playing]) => { if (portrait && playing) game?.pause(); });
 
-onBeforeUnmount(() => { disposed = true; stopOrientationWatch(); stop(); });
+// Map and compass work while the item is carried, as in the reference game.
+const owns = (itemId: string) => !!gameplay.value?.inventory.slots.some((stack) => stack?.itemId === itemId);
+const hasMap = computed(() => owns('map'));
+const hasCompass = computed(() => owns('compass'));
+const mapOpen = ref(false);
+const mapNote = ref('');
+const cameraYaw = ref(0);
+// The camera is not reactive; sample it at the snapshot rate for the compass arrow and map heading.
+const yawTimer = window.setInterval(() => { if (game && (hasCompass.value || mapOpen.value)) cameraYaw.value = game.camera.cameraYaw; }, 100);
+watch(canPlay, (playing) => { if (!playing) mapOpen.value = false; });
+watch(hasMap, (carried) => { if (!carried) mapOpen.value = false; });
+function toggleMap(): void {
+  if (!canPlay.value) return;
+  if (!hasMap.value) { mapNote.value = 'Нужна карта: изготовьте её на верстаке.'; window.setTimeout(() => { mapNote.value = ''; }, 1800); return; }
+  mapOpen.value = !mapOpen.value;
+}
+function onMapKey(event: KeyboardEvent): void {
+  if (event.code !== 'KeyM' || event.repeat || inventoryOpen.value || (event.target as Element | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
+  toggleMap();
+}
+window.addEventListener('keydown', onMapKey);
+const compass = computed(() => {
+  const player = snapshot.value?.player.position, fire = gameplay.value?.campfire.position;
+  if (!hasCompass.value || !player || !fire) return null;
+  const dx = fire.x - player.x, dz = fire.z - player.z, yaw = cameraYaw.value;
+  // Angle of the fire relative to the camera forward (sin yaw, -cos yaw); positive turns right.
+  const forward = dx * Math.sin(yaw) - dz * Math.cos(yaw), right = dx * Math.cos(yaw) + dz * Math.sin(yaw);
+  return { angle: Math.atan2(right, forward) * 180 / Math.PI, distance: Math.round(Math.hypot(dx, dz)) };
+});
+
+onBeforeUnmount(() => { disposed = true; window.removeEventListener('keydown', onMapKey); window.clearInterval(yawTimer); stopOrientationWatch(); stop(); });
 </script>
 
 <template>
@@ -283,13 +315,17 @@ onBeforeUnmount(() => { disposed = true; stopOrientationWatch(); stop(); });
     </section>
 
     <WorldClockHud v-if="canPlay && snapshot" :clock="snapshot.clock" :speed="simulationSpeed" />
+    <div v-if="canPlay && compass" class="compass-hud" aria-label="Компас: направление к костру"><span class="compass-arrow" :style="{ transform: 'rotate(' + compass.angle + 'deg)' }" aria-hidden="true">▲</span><span>Костёр · {{ compass.distance }} м</span></div>
+    <button v-if="canPlay && hasMap && !inventoryOpen" class="button secondary map-button" data-ui @click="toggleMap">Карта</button>
+    <p v-if="canPlay && mapNote" class="game-feedback map-note" role="status">{{ mapNote }}</p>
+    <MapPanel v-if="canPlay && mapOpen && gameplay && snapshot && !inventoryOpen" :gameplay="gameplay" :player="snapshot.player" :camera-yaw="cameraYaw" @close="mapOpen = false" />
     <div v-if="canPlay && !inventoryOpen" class="crosshair" aria-hidden="true">+</div>
     <p v-if="canPlay && controls.message" class="control-message" role="status">{{ controls.message }}</p>
     <div v-if="canPlay && gameplay" class="resource-count">Ресурсы <strong>{{ materials.wood }} дер. · {{ materials.stone }} кам. · {{ materials.scrap }} мет.</strong><span>Слоты {{ gameplay.inventory.slots.filter(Boolean).length }} / {{ gameplay.inventory.slots.length }}</span></div>
     <div v-if="canPlay && !inventoryOpen && gameplay?.interaction" class="target-hint">
       <strong>{{ gameplay.interaction.label }}</strong>
       <template v-if="gameplay.interaction.health !== undefined"><span>{{ gameplay.interaction.health }} / {{ gameplay.interaction.maxHealth }}</span><progress :value="gameplay.interaction.health" :max="gameplay.interaction.maxHealth" /></template>
-      <span>{{ gameplay.interaction.kind === 'farm' ? 'E / кнопка «Грядка»' : gameplay.interaction.kind === 'cooking-pot' ? 'E / кнопка «Котелок»' : gameplay.interaction.kind === 'workbench' ? 'E / кнопка «Верстак»' : gameplay.interaction.kind === 'campfire' ? (campfireAction === 'Топливо' ? 'E / «Топливо» · древесина или уголь' : 'E / «' + campfireAction + '»') : gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : (gameplay.interaction.kind === 'bush' || gameplay.interaction.kind === 'carrot') ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
+      <span>{{ gameplay.interaction.kind === 'rabbit-trap' ? 'E / кнопка «Ловушка»' : gameplay.interaction.kind === 'farm' ? 'E / кнопка «Грядка»' : gameplay.interaction.kind === 'cooking-pot' ? 'E / кнопка «Котелок»' : gameplay.interaction.kind === 'workbench' ? 'E / кнопка «Верстак»' : gameplay.interaction.kind === 'campfire' ? (campfireAction === 'Топливо' ? 'E / «Топливо» · древесина или уголь' : 'E / «' + campfireAction + '»') : gameplay.interaction.kind === 'storage' ? 'E / кнопка «Склад»' : (gameplay.interaction.kind === 'bush' || gameplay.interaction.kind === 'carrot') ? 'E / кнопка «Собрать»' : gameplay.interaction.kind === 'pickup' ? 'E / кнопка «Взять»' : 'ЛКМ / кнопка «Удар»' }}</span>
     </div>
     <p v-if="canPlay && feedback" class="game-feedback" role="status">{{ feedback }}</p>
     <div v-if="canPlay && !inventoryOpen && gameplay" class="equipment-bar" data-ui>

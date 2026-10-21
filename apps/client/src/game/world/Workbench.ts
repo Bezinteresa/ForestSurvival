@@ -50,7 +50,6 @@ export class Workbench {
     if (!access.accepted) return access;
     const recipe: CraftRecipe = CRAFT_RECIPES[recipeId as RecipeId];
     if (recipe.minLevel > this.level) return { accepted: false, reason: 'station-level' };
-    if (recipe.kind === 'backpack') return inventory.craftBackpack(recipe.cost, recipe.level);
     const result = inventory.craft(recipe.cost, { ...recipe.output, id: WORKBENCH_CONFIG.id + '/crafted/' + this.craftedCount });
     if (result.accepted) this.craftedCount++;
     return result;

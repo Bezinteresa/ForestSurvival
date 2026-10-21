@@ -191,3 +191,15 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 .rotate-device span { font-size: 56px; color: #d6e5a9; }
 .rotate-device strong { font-size: 20px; }
 .rotate-device p { margin: 0; max-width: 280px; color: #bdcbb4; font-size: 13px; line-height: 1.5; }
+
+/* Map and compass (T038b). */
+.compass-hud { position: absolute; z-index: 1; top: 18px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: #102017db; font-size: 12px; pointer-events: none; }
+.compass-arrow { display: inline-block; color: #f0c46c; font-size: 16px; transition: transform 0.1s linear; }
+.map-button { position: absolute; z-index: 2; right: 24px; top: 78px; }
+.map-note { top: 230px; }
+.map-panel { position: absolute; z-index: 4; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(460px, calc(100% - 24px)); max-height: calc(100svh - 24px); overflow: auto; padding: 16px; border: 1px solid #71816a; border-radius: 16px; color: #eff4e9; background: #14231bf2; }
+.map-svg { display: block; width: 100%; max-height: calc(100svh - 170px); aspect-ratio: 1; border-radius: 10px; }
+.craft-deferred { margin-top: 16px; font-size: 12px; color: #bbc9b3; }
+.craft-deferred summary { cursor: pointer; }
+@media (any-pointer: coarse) { .map-button { top: 130px; right: 20px; } .compass-hud { top: 8px; } }
+@media (any-pointer: coarse) and (max-height: 560px) { .map-button { top: 118px; right: auto; left: 260px; } }

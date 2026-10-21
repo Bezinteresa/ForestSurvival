@@ -12,7 +12,7 @@ function placement() { return { canPlaceWorkbench: () => true, addWorkbenchColli
 describe('workbench building and recipes', () => {
   it('builds once, takes its full cost, preserves other item IDs and returns isolated snapshots', () => {
     const bench = new Workbench(), bag = materials(), physics = placement();
-    expect(bench.craft('basic-axe', bag, player, visible).reason).toBe('station-required');
+    expect(bench.craft('map', bag, player, visible).reason).toBe('station-required');
     expect(bench.build(bag, player, visible, physics).accepted).toBe(true);
     expect([bag.count('wood'), bag.count('stone'), bag.count('scrap')]).toEqual([0, 2, 3]);
     const before = bag.snapshot();
@@ -38,28 +38,30 @@ describe('workbench building and recipes', () => {
     expect(physics.addWorkbenchCollider).not.toHaveBeenCalled();
   });
 
-  it('gates unknown and advanced recipes and rechecks distance/visibility on each craft', () => {
+  it('gates unknown, removed and advanced recipes and rechecks distance/visibility on each craft', () => {
     const bench = new Workbench(), bag = materials();
     bench.build(bag, player, visible, placement());
+    bag.insert({ id: 'wood-2', itemId: 'wood', amount: 3 });
     const before = bag.snapshot();
-    for (const id of ['unknown', '__proto__', 'constructor']) expect(bench.craft(id, bag, player, visible).reason).toBe('invalid');
-    expect(bench.craft('reinforced-axe', bag, player, visible).reason).toBe('station-level');
-    expect(bench.craft('basic-pickaxe', bag, { ...player, position: { x: -8, y: 0.92, z: 0 } }, visible).reason).toBe('out-of-range');
-    expect(bench.craft('basic-pickaxe', bag, player, { hasLineOfSight: () => false }).reason).toBe('blocked');
+    // Tools and the backpack come from finds now, as in the reference game.
+    for (const id of ['unknown', '__proto__', 'constructor', 'basic-axe', 'basic-pickaxe', 'reinforced-axe', 'expanded-backpack']) expect(bench.craft(id, bag, player, visible).reason).toBe('invalid');
+    expect(bench.craft('compass', bag, player, visible).reason).toBe('station-level');
+    expect(bench.craft('map', bag, { ...player, position: { x: -8, y: 0.92, z: 0 } }, visible).reason).toBe('out-of-range');
+    expect(bench.craft('map', bag, player, { hasLineOfSight: () => false }).reason).toBe('blocked');
     expect(bag.snapshot()).toEqual(before);
   });
 
-  it('crafts distinct level-one instances without consuming an ID on failure', () => {
+  it('crafts distinct map instances without consuming an ID on failure', () => {
     const bench = new Workbench(), bag = materials();
     bench.build(bag, player, visible, placement());
-    expect(bench.craft('basic-pickaxe', bag, player, visible).reason).toBe('insufficient-materials');
+    expect(bench.craft('map', bag, player, visible).reason).toBe('insufficient-materials');
     bag.insert({ id: 'more-wood', itemId: 'wood', amount: 3 });
-    bag.upgradeBackpack(2);
-    for (let index = 0; index < 2; index++) expect(bench.craft('basic-pickaxe', bag, player, visible).accepted).toBe(true);
-    const crafted = bag.snapshot().slots.filter((stack) => stack?.itemId === 'pickaxe');
+    bag.insert({ id: 'even-more-wood', itemId: 'wood', amount: 3 });
+    for (let index = 0; index < 2; index++) expect(bench.craft('map', bag, player, visible).accepted).toBe(true);
+    const crafted = bag.snapshot().slots.filter((stack) => stack?.itemId === 'map');
     expect(crafted.map((stack) => stack?.id)).toEqual(['camp-workbench/crafted/0', 'camp-workbench/crafted/1']);
-    expect(crafted.every((stack) => stack?.level === 1)).toBe(true);
-    expect([bag.count('wood'), bag.count('scrap')]).toEqual([1, 1]);
+    expect(crafted.every((stack) => stack?.level === undefined)).toBe(true);
+    expect(bag.count('wood')).toBe(0);
   });
 
   it('rejects build/craft during a swing and items lying on the construction site', () => {
@@ -68,7 +70,7 @@ describe('workbench building and recipes', () => {
     world.update(0, player, player.yaw);
     expect(world.useItem('hit', player.yaw, 0).accepted).toBe(true);
     expect(world.buildWorkbench(player, 0.1).reason).toBe('busy');
-    expect(world.craftItem('basic-axe', player, 0.1).reason).toBe('busy');
+    expect(world.craftItem('map', player, 0.1).reason).toBe('busy');
     expect(world.drop(0, player, player.yaw, 1).accepted).toBe(true);
     const before = bag.snapshot();
     expect(world.buildWorkbench(player, 1).reason).toBe('blocked');
@@ -77,18 +79,9 @@ describe('workbench building and recipes', () => {
     expect(world.buildWorkbench(player, 1).accepted).toBe(true);
   });
 
-  it('fits the build and both basic recipes into the map budget left after six campfire levels', () => {
-    const bag = new Inventory(5, [[0, { id: 'axe', itemId: 'axe', amount: 1 }], [1, { id: 'pick', itemId: 'pickaxe', amount: 1 }], [2, { id: 'wood', itemId: 'wood', amount: 3 }], [3, { id: 'stone', itemId: 'stone', amount: 3 }], [4, { id: 'scrap', itemId: 'scrap', amount: 3 }]]);
-    const bench = new Workbench();
-    expect(bench.build(bag, player, visible, placement()).accepted).toBe(true);
-    bag.insert({ id: 'wood-2', itemId: 'wood', amount: 2 });
-    bag.remove(0); // Store a spare tool before crafting in the five-slot bag.
-    expect(bench.craft('basic-axe', bag, player, visible).accepted).toBe(true);
-    bag.remove(0); // Store the new axe before crafting the next result.
-    expect(bench.craft('basic-pickaxe', bag, player, visible).accepted).toBe(true);
-    expect(bag.count('stone')).toBe(1);
-    expect(bag.count('scrap')).toBe(2);
-    expect(CRAFT_RECIPES['basic-pickaxe'].output.level).toBe(1);
+  it('offers only items with a working use: the map at level one and the compass at level two', () => {
+    expect(Object.values(CRAFT_RECIPES).map((recipe) => [recipe.id, recipe.minLevel, recipe.output.itemId])).toEqual([['map', 1, 'map'], ['compass', 2, 'compass']]);
+    expect(Object.values(CRAFT_RECIPES).every((recipe) => Object.keys(recipe.cost).every((material) => material === 'wood' || material === 'scrap'))).toBe(true);
   });
 });
 

@@ -1,3 +1,4 @@
+import type { TrapSnapshot } from './building';
 import type { BerryBushSnapshot, CarrotPatchSnapshot } from './survival';
 import type { CampfireSnapshot } from './campfire';
 import type { WorkbenchSnapshot } from './crafting';
@@ -47,7 +48,7 @@ export interface DummySnapshot {
 
 export interface InteractionSnapshot {
   readonly id: EntityId;
-  readonly kind: 'tree' | 'resource' | 'dummy' | 'pickup' | 'storage' | 'bush' | 'carrot' | 'campfire' | 'workbench' | 'cooking-pot' | 'farm';
+  readonly kind: 'tree' | 'resource' | 'dummy' | 'pickup' | 'storage' | 'bush' | 'carrot' | 'campfire' | 'workbench' | 'cooking-pot' | 'farm' | 'rabbit-trap';
   readonly label: string;
   readonly health?: number;
   readonly maxHealth?: number;
@@ -61,6 +62,7 @@ export interface GameplaySnapshot {
   readonly bedIds: readonly string[];
   readonly cookingPot: CookingPotSnapshot;
   readonly farms: readonly FarmSnapshot[];
+  readonly traps: readonly TrapSnapshot[];
   readonly debugTools: boolean;
   readonly equippedItem: EquippedItemId;
   readonly bag: { readonly wood: number; readonly capacity: number };

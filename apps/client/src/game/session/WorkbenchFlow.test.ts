@@ -361,7 +361,7 @@ describe('ordinary workbench session with Rapier', () => {
     const fresh = await setup(); expect(fresh.getSnapshot().gameplay.buildings).toEqual([]);
   });
 
-  it('gathers and buys both station levels and the backpack without debug, preserves identity and protects repeated commands', async () => {
+  it('gathers and buys both station levels, crafts a map without debug, preserves identity and protects repeated commands', async () => {
     const session = await gather();
     expect(send(session, { type: 'build-workbench' }).accepted).toBe(true);
     const initialTools = session.getSnapshot().gameplay.inventory.slots.filter((stack) => stack?.itemId === 'axe' || stack?.itemId === 'pickaxe');
@@ -379,7 +379,7 @@ describe('ordinary workbench session with Rapier', () => {
     expect(session.getSnapshot().gameplay.campfire).toEqual(fire);
     expect(send(session, { type: 'upgrade-workbench', expectedLevel: 1 }).reason).toBe('stale');
     expect(session.getSnapshot().gameplay.workbench.level).toBe(2);
-    expect(send(session, { type: 'craft-item', recipeId: 'expanded-backpack' }).reason).toBe('station-level');
+    expect(send(session, { type: 'craft-item', recipeId: 'expanded-backpack' }).reason).toBe('invalid');
     walk(session, -8, -3); walk(session, -8, -6.4);
     harvest(session, 'tree-03'); walk(session, -8, -7.8); pickup(session, 'tree-03', 2);
     walk(session, -10.5, -9); harvest(session, 'scrap-04'); walk(session, -12, -10); pickup(session, 'scrap-04', 1);
@@ -393,20 +393,20 @@ describe('ordinary workbench session with Rapier', () => {
     walk(session, -11.4, -3); harvest(session, 'tree-07'); walk(session, -12.6, -3); pickup(session, 'tree-07', 2);
     walk(session, -13.5, 3); harvest(session, 'scrap-06'); walk(session, -15, 4); pickup(session, 'scrap-06');
     walk(session, -8, 2); walk(session, 0, 0); walk(session, 0.6, -3);
-    const bag = { type: 'craft-item' as const, recipeId: 'expanded-backpack', requestId: 'bag-eight' };
-    expect(session.sendCommand(bag).accepted).toBe(true);
-    expect(session.sendCommand(bag)).toMatchObject({ accepted: true, duplicate: true });
-    const upgraded = session.getSnapshot().gameplay.inventory;
-    expect(upgraded).toMatchObject({ level: 2 });
-    expect(upgraded.slots).toHaveLength(8);
-    for (const tool of initialTools) expect(upgraded.slots).toContainEqual(tool);
-    expect(send(session, { type: 'craft-item', recipeId: 'expanded-backpack' }).reason).toBe('max-level');
-    expect(session.getSnapshot().gameplay.inventory).toEqual(upgraded);
+    const map = { type: 'craft-item' as const, recipeId: 'map', requestId: 'make-map' };
+    expect(session.sendCommand(map).accepted).toBe(true);
+    expect(session.sendCommand(map)).toMatchObject({ accepted: true, duplicate: true });
+    const crafted = session.getSnapshot().gameplay.inventory;
+    expect(crafted.slots.filter((stack) => stack?.itemId === 'map')).toEqual([{ id: 'camp-workbench/crafted/0', itemId: 'map', amount: 1 }]);
+    expect(crafted.slots).toHaveLength(5);
+    for (const tool of initialTools) expect(crafted.slots).toContainEqual(tool);
+    expect(send(session, { type: 'craft-item', recipeId: 'map' }).reason).toBe('insufficient-materials');
+    expect(session.getSnapshot().gameplay.inventory).toEqual(crafted);
     session.pause();
     expect(send(session, { type: 'upgrade-workbench', expectedLevel: 3 }).reason).toBe('paused');
     session.sendCommand({ type: 'reset-player', requestId: 'keep-three' });
     expect(session.getSnapshot().gameplay.workbench.level).toBe(3);
-    expect(session.getSnapshot().gameplay.inventory.level).toBe(2);
+    expect(session.getSnapshot().gameplay.inventory.level).toBe(1);
     session.destroy();
     expect(() => session.getSnapshot()).not.toThrow();
     const fresh = await setup();
@@ -447,11 +447,11 @@ describe('ordinary workbench session with Rapier', () => {
     walk(session, -1.5, 5);
     walk(session, -1.5, 0);
     walk(session, 0.6, -2);
-    const recipe = { type: 'craft-item' as const, recipeId: 'basic-axe', requestId: 'craft-once' };
+    const recipe = { type: 'craft-item' as const, recipeId: 'map', requestId: 'craft-once' };
     expect(session.sendCommand(recipe).accepted).toBe(true);
     expect(session.sendCommand(recipe)).toMatchObject({ accepted: true, duplicate: true });
     const crafted = session.getSnapshot().gameplay.inventory.slots.find((stack) => stack?.id === 'camp-workbench/crafted/0')!;
-    expect(crafted).toMatchObject({ itemId: 'axe', level: 1, amount: 1 });
+    expect(crafted).toEqual({ id: 'camp-workbench/crafted/0', itemId: 'map', amount: 1 });
     const slot = session.getSnapshot().gameplay.inventory.slots.findIndex((stack) => stack?.id === crafted.id);
     expect(send(session, { type: 'drop-item', slot, yaw: Math.PI }).accepted).toBe(true);
     expect(send(session, { type: 'pickup', targetId: crafted.id }).accepted).toBe(true);
@@ -460,7 +460,7 @@ describe('ordinary workbench session with Rapier', () => {
     expect(send(session, { type: 'transfer-item', direction: 'deposit', slot: movedSlot, expectedItemId: crafted.id }).accepted).toBe(true);
     expect(session.getSnapshot().gameplay.storage.inventory.slots).toContainEqual(crafted);
     session.pause();
-    expect(send(session, { type: 'craft-item', recipeId: 'basic-axe' }).reason).toBe('paused');
+    expect(send(session, { type: 'craft-item', recipeId: 'map' }).reason).toBe('paused');
     session.sendCommand({ type: 'reset-player', requestId: 'reset' });
     expect(session.getSnapshot().gameplay.workbench.built).toBe(true);
     session.destroy();

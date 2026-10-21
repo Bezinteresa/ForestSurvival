@@ -119,17 +119,14 @@ export class Inventory {
     return { accepted: true };
   }
 
-  craftBackpack(cost: MaterialCost, level: UpgradeLevel): CommandResult {
-    if (level !== 2) return { accepted: false, reason: 'invalid' };
-    if (this.level >= level) return { accepted: false, reason: 'max-level' };
-    const draft = this.copyForCraft();
-    const spent = draft.spendMaterials(cost);
-    if (!spent.accepted) return spent;
-    const upgraded = draft.upgradeBackpack(level);
-    if (!upgraded.accepted) return upgraded;
-    this.slots = draft.slots;
-    this.level = draft.level;
-    return { accepted: true };
+  /** Spends a carried large backpack and widens this inventory in one step; a second one is refused unspent. */
+  applyBackpackItem(slot: number, expectedItemId: string): CommandResult {
+    const stack = this.validSlot(slot) ? this.slots[slot] : null;
+    if (!stack || stack.id !== expectedItemId) return { accepted: false, reason: 'stale' };
+    if (stack.itemId !== 'large-backpack') return { accepted: false, reason: 'invalid' };
+    if (this.level >= 2) return { accepted: false, reason: 'max-level' };
+    this.slots[slot] = null;
+    return this.upgradeBackpack(2);
   }
 
   private copyForCraft(): Inventory {

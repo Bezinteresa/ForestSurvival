@@ -6,13 +6,18 @@ export type FoodId = 'berries' | 'raw-meat' | 'cooked-meat' | 'meat-soup' | 'car
 export type MedicalId = 'bandage' | 'medkit';
 /** Items spent from a slot to apply hunger and/or health effects. */
 export type ConsumableId = FoodId | MedicalId;
-export type ItemId = ToolId | MaterialId | ConsumableId;
+/** Equipment that works while carried (map, compass) or is applied once (large backpack). */
+export type GearId = 'map' | 'compass' | 'large-backpack';
+export type ItemId = ToolId | MaterialId | ConsumableId | GearId;
 export type ItemCost = Readonly<Partial<Record<ItemId, number>>>;
 export type UpgradeLevel = 1 | 2;
 
 export const ITEM_DEFINITIONS = {
   axe: { label: 'Топор', stackLimit: 1 },
   pickaxe: { label: 'Кирка', stackLimit: 1 },
+  map: { label: 'Карта', stackLimit: 1 },
+  compass: { label: 'Компас', stackLimit: 1 },
+  'large-backpack': { label: 'Большой рюкзак', stackLimit: 1 },
   wood: { label: 'Древесина', stackLimit: 3 },
   stone: { label: 'Камень', stackLimit: 3 },
   scrap: { label: 'Металлолом', stackLimit: 3 },
@@ -27,6 +32,7 @@ export const ITEM_DEFINITIONS = {
   medkit: { label: 'Аптечка', stackLimit: 1 },
 } as const satisfies Record<ItemId, { label: string; stackLimit: number }>;
 
+export function isGear(itemId: ItemId): itemId is GearId { return itemId === 'map' || itemId === 'compass' || itemId === 'large-backpack'; }
 export function isTool(itemId: ItemId): itemId is ToolId { return itemId === 'axe' || itemId === 'pickaxe'; }
 export function isFood(itemId: ItemId): itemId is FoodId { return itemId === 'berries' || itemId === 'raw-meat' || itemId === 'cooked-meat' || itemId === 'meat-soup' || itemId === 'carrot' || itemId === 'carrot-stew'; }
 export function isMedical(itemId: ItemId): itemId is MedicalId { return itemId === 'bandage' || itemId === 'medkit'; }

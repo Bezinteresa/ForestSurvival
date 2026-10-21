@@ -1,4 +1,4 @@
-import { AXE_CONFIG, CAMP_STORAGE, CONSUMABLE_DEFINITIONS, COOKING_RECIPES, TEST_BERRY_BUSHES, isConsumable, isCookable, isMedical, ITEM_DEFINITIONS, PLAYER_CONFIG, RESOURCE_DEFINITIONS, TOOL_DAMAGE, TOOL_LEVELS, RESOURCE_CONFIG, TEST_WORLD, TRAINING_DUMMY, type CommandResult, type DummySnapshot, type GameplaySnapshot, type InteractionSnapshot, type LootSnapshot, type PlayerSnapshot, type TreeDefinition, type Vector3Data, type MaterialNodeDefinition, type ResourceKind, type ToolId, type BerryBushDefinition, type ItemStack } from '@forest-survival/shared';
+import { TRAP_CONFIG, AXE_CONFIG, CAMP_STORAGE, CONSUMABLE_DEFINITIONS, COOKING_RECIPES, TEST_BERRY_BUSHES, isConsumable, isCookable, isMedical, ITEM_DEFINITIONS, PLAYER_CONFIG, RESOURCE_DEFINITIONS, TOOL_DAMAGE, TOOL_LEVELS, RESOURCE_CONFIG, TEST_WORLD, TRAINING_DUMMY, type CommandResult, type DummySnapshot, type GameplaySnapshot, type InteractionSnapshot, type LootSnapshot, type PlayerSnapshot, type TreeDefinition, type Vector3Data, type MaterialNodeDefinition, type ResourceKind, type ToolId, type BerryBushDefinition, type ItemStack } from '@forest-survival/shared';
 import { AttackController } from '../combat/AttackController';
 import { DamageReceiver } from '../combat/DamageReceiver';
 import { selectTarget, type TargetPoint, type VisibilityQueries } from '../combat/TargetQuery';
@@ -17,6 +17,7 @@ import { CookingPot } from './CookingPot';
 import type { CarrotPatchDefinition } from '@forest-survival/shared';
 import { FARM_CONFIG } from '@forest-survival/shared';
 import { FarmWorld } from './FarmWorld';
+import { TrapWorld } from './TrapWorld';
 
 interface ResourceDefinition extends TreeDefinition { readonly kind: ResourceKind }
 
@@ -39,6 +40,10 @@ export class GameplayWorld {
   private readonly cookingPot = new CookingPot();
   private readonly farms = new FarmWorld();
   private readonly farmsInReach = new Set<string>();
+  private readonly traps = new TrapWorld();
+  /** Simulation time of the latest update, used to label traps in the interaction hint. */
+  private lastNow = 0;
+  private readonly trapsInReach = new Set<string>();
   private potInReach = false;
   private readonly workbench = new Workbench();
   private workbenchInReach = false;
@@ -85,7 +90,11 @@ export class GameplayWorld {
       canPlaceBuilding: (box) => this.visibility.canPlaceBuilding!(box),
       activateBuildingCollider: (box) => this.visibility.activateBuildingCollider!(box),
     }, [...this.loot.values()]);
-    if (result.accepted) { this.feedback = { kind: 'info', text: 'Постройка установлена.', at: now }; this.updateInteraction(player, player.yaw); }
+    if (result.accepted) {
+      for (const trap of this.buildings.traps()) this.traps.arm(trap.id, now);
+      this.feedback = { kind: 'info', text: 'Постройка установлена.', at: now };
+      this.updateInteraction(player, player.yaw);
+    }
     return result;
   }
 
@@ -106,6 +115,14 @@ export class GameplayWorld {
   harvestFarm(farmId: string, expectedCycleId: string, player: PlayerSnapshot, now: number): CommandResult {
     if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
     return this.farmFeedback(this.farms.harvest(this.buildings.farm(farmId), expectedCycleId, this.inventory, player, this.visibility, now), now, 'Морковь: +' + FARM_CONFIG.harvestAmount);
+  }
+
+  collectTrap(trapId: string, expectedCatchId: string, player: PlayerSnapshot, now: number): CommandResult {
+    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
+    const result = this.traps.collect(this.buildings.trap(trapId), expectedCatchId, this.inventory, player, this.visibility, now);
+    const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = { missing: 'Ловушка не найдена.', 'out-of-range': 'Подойдите к ловушке.', blocked: 'Ловушка закрыта препятствием.', stale: 'Ловушка уже опустела. Посмотрите ещё раз.', 'trap-empty': 'Ловушка пока пуста.', 'inventory-full': 'Нет места для мяса. Добыча остаётся в ловушке.' };
+    this.feedback = { kind: result.accepted ? 'pickup' : 'blocked', text: result.accepted ? 'Ловушка: +' + TRAP_CONFIG.meatPerCatch + ' · Сырое мясо' : messages[result.reason!] ?? 'Действие недоступно.', at: now };
+    return result;
   }
 
   private farmFeedback(result: CommandResult, now: number, success: string): CommandResult {
@@ -159,6 +176,7 @@ export class GameplayWorld {
     this.workbenchInReach = false;
     this.potInReach = false;
     this.farmsInReach.clear();
+    this.trapsInReach.clear();
   }
 
   buildWorkbench(player: PlayerSnapshot, now: number): CommandResult {
@@ -200,6 +218,11 @@ export class GameplayWorld {
     if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
     const stack = this.inventory.getStack(slot);
     if (!stack || stack.id !== expectedItemId) return { accepted: false, reason: 'stale' };
+    if (stack.itemId === 'large-backpack') {
+      const applied = this.inventory.applyBackpackItem(slot, expectedItemId);
+      this.feedback = { kind: applied.accepted ? 'info' : 'blocked', text: applied.accepted ? 'Рюкзак расширен до ' + this.inventory.snapshot().slots.length + ' слотов.' : applied.reason === 'max-level' ? 'Рюкзак уже расширен.' : 'Не удалось надеть рюкзак.', at: now };
+      return applied;
+    }
     if (!isConsumable(stack.itemId)) return { accepted: false, reason: 'invalid' };
     const effect = CONSUMABLE_DEFINITIONS[stack.itemId];
     const blocker = vitals.consumeBlocker(effect);
@@ -302,6 +325,7 @@ export class GameplayWorld {
   getAttackYaw(now: number): number | undefined { return this.attacks.getYaw(now); }
 
   update(now: number, player: PlayerSnapshot, viewYaw: number): void {
+    this.lastNow = now;
     const strike = this.attacks.update(now);
     if (strike) {
       const target = this.findStrikeTarget(player, strike.yaw);
@@ -362,6 +386,10 @@ export class GameplayWorld {
     }
     if (this.interaction?.kind === 'workbench') return this.attacks.isBusy(now) ? this.reject('busy', 'Дождитесь завершения удара.', now) : this.workbench.access(player, this.visibility);
     if (this.interaction?.kind === 'cooking-pot') return this.attacks.isBusy(now) ? this.reject('busy', 'Дождитесь завершения удара.', now) : this.cookingPot.access(this.buildings.cookingPot(), player, this.visibility);
+    if (this.interaction?.kind === 'rabbit-trap') {
+      const trap = this.traps.snapshot(this.buildings.traps(), now, this.trapsInReach).find((entry) => entry.id === this.interaction!.id);
+      return trap ? this.collectTrap(trap.id, trap.catchId, player, now) : { accepted: false, reason: 'missing' };
+    }
     if (this.interaction?.kind === 'farm') return this.attacks.isBusy(now) ? this.reject('busy', 'Дождитесь завершения удара.', now) : this.farms.access(this.buildings.farm(this.interaction.id), player, this.visibility);
     return this.interaction?.kind === 'pickup' ? this.pickup(this.interaction.id, player, now) : { accepted: false, reason: 'missing' };
   }
@@ -375,6 +403,7 @@ export class GameplayWorld {
       bedIds: this.bedIds(),
       cookingPot: this.cookingPot.snapshot(this.buildings.cookingPot(), this.potInReach, this.campfire.contains(COOKING_POT_CONFIG.position)),
       farms: this.farms.snapshot(this.buildings.farms(), now, this.farmsInReach),
+      traps: this.traps.snapshot(this.buildings.traps(), now, this.trapsInReach),
       debugTools: this.debugTools,
       equippedItem: this.inventory.equippedItem,
       bag: { wood: this.inventory.count('wood'), capacity: this.inventory.capacityFor('wood') },
@@ -417,6 +446,9 @@ export class GameplayWorld {
     const farms = this.buildings.farms();
     this.farmsInReach.clear();
     for (const farm of farms) if (this.farms.access(farm, player, this.visibility).accepted) this.farmsInReach.add(farm.id);
+    const traps = this.buildings.traps();
+    this.trapsInReach.clear();
+    for (const trap of traps) if (this.traps.access(trap, player, this.visibility).accepted) this.trapsInReach.add(trap.id);
     const item = selectTarget([...this.loot.values()].map((loot) => ({ id: loot.id, position: loot.position, radius: 0 })), origin, yaw, RESOURCE_CONFIG.pickupRange, Math.PI * 0.48, AXE_CONFIG.maxHeightDifference, this.visibility);
     if (item) {
       const stack = this.loot.get(item.id)!;
@@ -429,6 +461,12 @@ export class GameplayWorld {
     if (carrot) { this.interaction = { id: carrot.id, kind: 'carrot', label: 'Собрать морковь' }; return; }
     const farmTarget = selectTarget(farms.filter((farm) => this.farmsInReach.has(farm.id)).map((farm) => ({ id: farm.id, position: farm.position, radius: 0 })), origin, yaw, FARM_CONFIG.range, AXE_CONFIG.halfAngle, 1.5, this.visibility);
     if (farmTarget) { this.interaction = { id: farmTarget.id, kind: 'farm', label: 'Открыть грядку' }; return; }
+    const trapTarget = selectTarget(traps.filter((trap) => this.trapsInReach.has(trap.id)).map((trap) => ({ id: trap.id, position: trap.position, radius: 0 })), origin, yaw, TRAP_CONFIG.range, AXE_CONFIG.halfAngle, 1.5, this.visibility);
+    if (trapTarget) {
+      const state = this.traps.snapshot(traps, this.lastNow, this.trapsInReach).find((entry) => entry.id === trapTarget.id);
+      this.interaction = { id: trapTarget.id, kind: 'rabbit-trap', label: state?.ready ? 'Ловушка: заяц пойман' : 'Ловушка пуста · ' + Math.ceil((state?.durationSeconds ?? 0) - (state?.progressSeconds ?? 0)) + ' с' };
+      return;
+    }
     const storageTarget = selectTarget(storages.filter((entry) => entry.canAccess(player, this.visibility)).map((entry) => ({ id: entry.definition.id, position: entry.definition.position, radius: 0 })), origin, yaw, CAMP_STORAGE.range, AXE_CONFIG.halfAngle, 1.5, this.visibility);
     if (storageTarget) {
       this.interaction = { id: storageTarget.id, kind: 'storage', label: 'Открыть склад лагеря' };

@@ -142,6 +142,7 @@ export class LocalSession implements GameSession {
       case 'cook-pot': result = this.gameplay.cookPot(command.recipeId, command.expectedBatchId, this.currentPlayer, this.simulationTime); break;
       case 'collect-pot': result = this.gameplay.collectPot(command.expectedBatchId, this.currentPlayer, this.simulationTime); break;
       case 'plant-farm': result = this.gameplay.plantFarm(command.farmId, command.expectedCycleId, command.slot, command.expectedItemId, this.currentPlayer, this.simulationTime); break;
+      case 'collect-trap': result = this.gameplay.collectTrap(command.trapId, command.expectedCatchId, this.currentPlayer, this.simulationTime); break;
       case 'harvest-farm': result = this.gameplay.harvestFarm(command.farmId, command.expectedCycleId, this.currentPlayer, this.simulationTime); break;
       case 'debug-upgrade': result = this.gameplay.debugUpgrade(command.target, command.slot, command.level, this.simulationTime); break;
       case 'pickup': result = this.gameplay.pickup(command.targetId, this.currentPlayer, this.simulationTime); break;

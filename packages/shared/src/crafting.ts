@@ -1,4 +1,4 @@
-import type { ItemStack, MaterialCost, UpgradeLevel } from './items';
+import type { ItemStack, MaterialCost } from './items';
 import type { Vector3Data } from './index';
 
 export const WORKBENCH_CONFIG = {
@@ -29,18 +29,25 @@ interface RecipeBase {
   readonly minLevel: WorkbenchLevel;
   readonly cost: MaterialCost;
 }
-export type CraftRecipe = RecipeBase & (
-  | { readonly kind: 'item'; readonly output: Omit<ItemStack, 'id'> }
-  | { readonly kind: 'backpack'; readonly level: UpgradeLevel }
-);
+/** Items made at the workbench. Placed camp objects (storage, beds, traps...) are buildings, not recipes. */
+export type CraftRecipe = RecipeBase & { readonly kind: 'item'; readonly output: Omit<ItemStack, 'id'> };
 
+// As in the reference game the workbench does not make tools: axes, pickaxes and the bigger
+// backpack are found beyond the fog (TEST_SUPPLIES), so the campfire level opens equipment.
 export const CRAFT_RECIPES = {
-  'basic-axe': { id: 'basic-axe', label: 'Топор', kind: 'item', minLevel: 1, cost: { wood: 1, stone: 1 }, output: { itemId: 'axe', amount: 1, level: 1 } },
-  'basic-pickaxe': { id: 'basic-pickaxe', label: 'Кирка', kind: 'item', minLevel: 1, cost: { wood: 1, scrap: 1 }, output: { itemId: 'pickaxe', amount: 1, level: 1 } },
-  'reinforced-axe': { id: 'reinforced-axe', label: 'Улучшенный топор', kind: 'item', minLevel: 2, cost: { wood: 1, scrap: 2 }, output: { itemId: 'axe', amount: 1, level: 2 } },
-  'reinforced-pickaxe': { id: 'reinforced-pickaxe', label: 'Улучшенная кирка', kind: 'item', minLevel: 2, cost: { wood: 1, scrap: 2 }, output: { itemId: 'pickaxe', amount: 1, level: 2 } },
-  'expanded-backpack': { id: 'expanded-backpack', label: 'Рюкзак · ур. 2', kind: 'backpack', minLevel: 3, cost: { wood: 3, scrap: 2 }, level: 2 },
+  map: { id: 'map', label: 'Карта', kind: 'item', minLevel: 1, cost: { wood: 3 }, output: { itemId: 'map', amount: 1 } },
+  compass: { id: 'compass', label: 'Компас', kind: 'item', minLevel: 2, cost: { scrap: 3 }, output: { itemId: 'compass', amount: 1 } },
 } as const satisfies Record<string, CraftRecipe>;
+/** Reference workbench entries that have no working mechanic yet; shown as locked so the catalog stays honest. */
+export const DEFERRED_WORKBENCH_ITEMS = [
+  { label: 'Шкаф для костюмов', minLevel: 1, reason: 'косметика — после профиля и магазина' },
+  { label: 'Солнечные часы', minLevel: 2, reason: 'часы уже на экране; отдельная механика не решена' },
+  { label: 'Обычная кровать', minLevel: 2, reason: 'уровни кроватей — после баланса множителя' },
+  { label: 'Бесконечный резервуар', minLevel: 2, reason: 'в игре пока нет воды' },
+  { label: 'Полка', minLevel: 2, reason: 'нужна система размещения предметов' },
+  { label: 'Деревянные ворота', minLevel: 2, reason: 'нужны двери и ограждение' },
+  { label: 'Капкан на медведя', minLevel: 2, reason: 'нужны враги (T043+)' },
+] as const;
 export type RecipeId = keyof typeof CRAFT_RECIPES;
 
 export interface WorkbenchSnapshot {

@@ -46,7 +46,7 @@ onBeforeUnmount(() => dialog.value?.close());
     <div class="inventory-actions">
       <template v-if="movingFrom === null">
         <button class="button primary" @click="emit('selectSlot', selected)">В руку</button>
-        <button v-if="stack && isConsumable(stack.itemId)" class="button primary" @click="emit('consumeItem', selected)">{{ isMedical(stack.itemId) ? 'Использовать' : 'Съесть одну' }}</button>
+        <button v-if="stack && (isConsumable(stack.itemId) || stack.itemId === 'large-backpack')" class="button primary" :disabled="stack.itemId === 'large-backpack' && inventory.level >= 2" @click="emit('consumeItem', selected)">{{ stack.itemId === 'large-backpack' ? 'Надеть · +3 слота' : isMedical(stack.itemId) ? 'Использовать' : 'Съесть одну' }}</button>
         <button class="button secondary" :disabled="!stack" @click="movingFrom = selected">Перенести</button>
         <button class="button secondary" :disabled="!stack" @click="emit('dropItem', selected)">Выбросить стек</button>
         <button class="button secondary" :disabled="!stack || !storage.inReach" @click="emit('transferItem', 'deposit', selected)">В склад</button>

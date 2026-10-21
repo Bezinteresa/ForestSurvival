@@ -1,9 +1,11 @@
 import * as THREE from 'three';
-import { ALL_BUILD_SITES, BUILDING_DEFINITIONS, type BuildingPreview, type BuildingSnapshot, type CookingPotSnapshot } from '@forest-survival/shared';
+import { ALL_BUILD_SITES, BUILDING_DEFINITIONS, type BuildingPreview, type BuildingSnapshot, type CookingPotSnapshot, type TrapSnapshot } from '@forest-survival/shared';
 
 export class CampBuildingView {
   private readonly markers = new Map<string, THREE.Mesh>();
   private readonly meshes = new Map<string, THREE.Group>();
+  /** Caught hare shown inside a ready trap. */
+  private readonly catches = new Map<string, THREE.Group>();
   private soup: THREE.Mesh<THREE.CircleGeometry, THREE.MeshStandardMaterial> | undefined;
   private readonly ghostMaterial = new THREE.MeshStandardMaterial({ color: 0x65dd91, transparent: true, opacity: 0.45, depthWrite: false });
   private readonly ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), this.ghostMaterial);
@@ -20,7 +22,7 @@ export class CampBuildingView {
     this.ghost.visible = false; scene.add(this.ghost);
   }
 
-  update(buildings: readonly BuildingSnapshot[], preview?: BuildingPreview, cookingPot?: CookingPotSnapshot): void {
+  update(buildings: readonly BuildingSnapshot[], preview?: BuildingPreview, cookingPot?: CookingPotSnapshot, traps: readonly TrapSnapshot[] = []): void {
     for (const entry of buildings) {
       this.markers.get(entry.siteId)!.visible = false;
       if (this.meshes.has(entry.id)) continue;
@@ -47,6 +49,18 @@ export class CampBuildingView {
         this.soup = new THREE.Mesh(new THREE.CircleGeometry(0.37, 16), new THREE.MeshStandardMaterial({ color: 0x9c7354, roughness: 1 }));
         this.soup.rotation.x = -Math.PI / 2; this.soup.position.y = 0.87; root.add(this.soup);
       }
+      else if (entry.kind === 'rabbit-trap') {
+        // Wooden box trap with a propped lid; the hare appears inside when a catch is ready.
+        for (const x of [-0.4, 0.4]) add(x, 0.15, 0, 0.08, 0.3, 0.7);
+        add(0, 0.02, 0, 0.88, 0.04, 0.7);
+        add(0, 0.15, -0.33, 0.8, 0.3, 0.06);
+        const lid = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.04, 0.7), material); lid.position.set(0, 0.42, 0.08); lid.rotation.x = -0.35; root.add(lid);
+        const fur = new THREE.MeshStandardMaterial({ color: 0xb8a58a, roughness: 1 });
+        const hare = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.34), fur); body.position.y = 0.13; hare.add(body);
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.14), fur); head.position.set(0, 0.22, 0.18); hare.add(head);
+        hare.visible = false; root.add(hare); this.catches.set(entry.id, hare);
+      }
       else if (entry.kind === 'bed') {
         add(0, 0.25, 0, 1.1, 0.25, 2);
         for (const x of [-0.4, 0.4]) for (const z of [-0.85, 0.85]) add(x, 0.1, z, 0.15, 0.2, 0.15);
@@ -61,6 +75,7 @@ export class CampBuildingView {
       }
       this.scene.add(root); this.meshes.set(entry.id, root);
     }
+    for (const trap of traps) { const hare = this.catches.get(trap.id); if (hare) hare.visible = trap.ready; }
     if (this.soup) { this.soup.visible = !!cookingPot?.cooking; this.soup.material.color.setHex(cookingPot?.cooking?.ready ? 0xd5a05b : 0x9c7354); }
     this.ghost.visible = !!preview?.box;
     if (preview?.box) {

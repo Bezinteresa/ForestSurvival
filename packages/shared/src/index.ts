@@ -65,6 +65,7 @@ export type SessionCommand = { readonly requestId: string } & (
   | { readonly type: 'collect-pot'; readonly expectedBatchId: string }
   | { readonly type: 'plant-farm'; readonly farmId: string; readonly expectedCycleId: string; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'harvest-farm'; readonly farmId: string; readonly expectedCycleId: string }
+  | { readonly type: 'collect-trap'; readonly trapId: string; readonly expectedCatchId: string }
   | { readonly type: 'debug-upgrade'; readonly target: 'tool' | 'backpack'; readonly slot: number; readonly level: 2 }
   | { readonly type: 'consume-item'; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'gather'; readonly targetId: string }
@@ -81,7 +82,7 @@ export type SessionCommand = { readonly requestId: string } & (
 export interface CommandResult {
   readonly accepted: boolean;
   readonly duplicate?: boolean;
-  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale' | 'satiated' | 'dead' | 'wrong-fuel' | 'fire-out' | 'max-level' | 'insufficient-materials' | 'station-required' | 'station-level' | 'already-built' | 'full-health' | 'not-cookable' | 'cooking-busy' | 'nothing-cooked' | 'wrong-seed' | 'farm-busy' | 'not-grown';
+  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale' | 'satiated' | 'dead' | 'wrong-fuel' | 'fire-out' | 'max-level' | 'insufficient-materials' | 'station-required' | 'station-level' | 'already-built' | 'full-health' | 'not-cookable' | 'cooking-busy' | 'nothing-cooked' | 'wrong-seed' | 'farm-busy' | 'not-grown' | 'trap-empty';
 }
 
 export const SIMULATION_CONFIG = {

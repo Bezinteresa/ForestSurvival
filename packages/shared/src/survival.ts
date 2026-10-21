@@ -42,9 +42,13 @@ export interface CookingSnapshot {
 }
 
 /** Found supplies until exploration containers exist (T050+). Positions are fixed so a run is reproducible. */
-export const TEST_SUPPLIES: ReadonlyArray<{ readonly id: string; readonly itemId: ConsumableId; readonly amount: number; readonly position: Vector3Data }> = [
+export const TEST_SUPPLIES: ReadonlyArray<{ readonly id: string; readonly itemId: ItemId; readonly amount: number; readonly level?: 2; readonly position: Vector3Data }> = [
   { id: 'supply-bandage-01', itemId: 'bandage', amount: 2, position: { x: 8.5, y: 0.23, z: -8.5 } },
   { id: 'supply-medkit-01', itemId: 'medkit', amount: 1, position: { x: -10.5, y: 0.23, z: 15 } },
+  // Equipment lies beyond the starting fog: campfire level 2 (±14.8 m) and 3 (±16.1 m) open it.
+  { id: 'supply-axe-02', itemId: 'axe', amount: 1, level: 2, position: { x: 14, y: 0.23, z: -9 } },
+  { id: 'supply-pickaxe-02', itemId: 'pickaxe', amount: 1, level: 2, position: { x: -14.2, y: 0.23, z: 9 } },
+  { id: 'supply-backpack-02', itemId: 'large-backpack', amount: 1, position: { x: 5.5, y: 0.23, z: 15.5 } },
 ];
 
 export interface VitalsSnapshot {
