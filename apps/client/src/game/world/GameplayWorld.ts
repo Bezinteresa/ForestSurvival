@@ -6,7 +6,7 @@ import { Inventory } from '../items/Inventory';
 import { CampStorage } from '../items/CampStorage';
 import { PlayerVitals } from '../player/PlayerVitals';
 import { ForagingWorld } from './ForagingWorld';
-import { CAMPFIRE_CONFIG, FUEL_DEFINITIONS, isFuel, type CampfireLevel } from '@forest-survival/shared';
+import { CAMPFIRE_CONFIG, FUEL_DEFINITIONS, isFuel } from '@forest-survival/shared';
 import { Campfire } from './Campfire';
 import { WORKBENCH_CONFIG, type WorkbenchLevel } from '@forest-survival/shared';
 import { Workbench, type WorkbenchPlacement } from './Workbench';
@@ -26,6 +26,8 @@ export interface GameplayQueries extends VisibilityQueries {
   addWorkbenchCollider?: WorkbenchPlacement['addWorkbenchCollider'];
   canPlaceBuilding?: BuildingQueries['canPlaceBuilding'];
   activateBuildingCollider?: BuildingQueries['activateBuildingCollider'];
+  /** Moves the fog boundary when the campfire level opens more of the map. */
+  setMapHalfSize?(halfSize: number): void;
 }
 
 export class GameplayWorld {
@@ -132,24 +134,20 @@ export class GameplayWorld {
   fuelFire(slot: number, expectedItemId: string, player: PlayerSnapshot, now: number): CommandResult {
     if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
     const stack = this.inventory.getStack(slot);
+    const levelBefore = this.campfire.currentLevel;
     const result = this.campfire.addFuel(this.inventory, slot, expectedItemId, player, this.visibility);
     const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = {
       'out-of-range': 'Подойдите к костру.', blocked: 'Костёр закрыт препятствием.', stale: 'Слот изменился. Выберите топливо заново.',
-      'wrong-fuel': 'Выберите древесину или уголь.', 'fire-full': 'Нет места для всей порции топлива. Предмет сохранён.',
+      'wrong-fuel': 'Выберите древесину или уголь.',
     };
-    this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted && stack && isFuel(stack.itemId) ? 'Костёр: +' + FUEL_DEFINITIONS[stack.itemId].seconds + ' с · ' + ITEM_DEFINITIONS[stack.itemId].label + ' −1' : messages[result.reason!] ?? 'Не удалось добавить топливо.', at: now };
-    return result;
-  }
-
-  upgradeFire(expectedLevel: CampfireLevel, player: PlayerSnapshot, now: number): CommandResult {
-    if (this.attacks.isBusy(now)) return this.reject('busy', 'Дождитесь завершения удара.', now);
-    const result = this.campfire.upgrade(expectedLevel, this.inventory, player, this.visibility);
-    const messages: Partial<Record<NonNullable<CommandResult['reason']>, string>> = {
-      'out-of-range': 'Подойдите к костру.', blocked: 'Костёр закрыт препятствием.', stale: 'Уровень костра изменился. Проверьте новое улучшение.',
-      'fire-out': 'Сначала разожгите костёр.', 'max-level': 'Достигнут максимальный уровень костра.', 'insufficient-materials': 'Не хватает материалов в рюкзаке.',
-    };
+    if (result.accepted && this.campfire.currentLevel > levelBefore) {
+      this.visibility.setMapHalfSize?.(this.campfire.mapHalfSize);
+      this.feedback = { kind: 'info', text: 'Огонь достиг 100%: костёр ур. ' + this.campfire.currentLevel + '. Карта стала больше.', at: now };
+      return result;
+    }
     const state = this.campfire.snapshot(player, this.campfireInReach);
-    this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted ? 'Костёр: уровень ' + state.level + ' · зона ' + state.zoneRadius + ' м' : messages[result.reason!] ?? 'Улучшение недоступно.', at: now };
+    const progress = state.progressRequired === null ? '' : ' · уровень ' + Math.round(100 * state.progress / state.progressRequired) + '%';
+    this.feedback = { kind: result.accepted ? 'info' : 'blocked', text: result.accepted && stack && isFuel(stack.itemId) ? 'Костёр: +' + FUEL_DEFINITIONS[stack.itemId].seconds + ' с · ' + ITEM_DEFINITIONS[stack.itemId].label + ' −1' + progress : messages[result.reason!] ?? 'Не удалось добавить топливо.', at: now };
     return result;
   }
 
@@ -450,7 +448,8 @@ export class GameplayWorld {
       const snapshot = this.campfire.snapshot(player, true);
       const cooking = snapshot.cooking;
       const cookingLabel = !cooking ? '' : cooking.ready ? ' · готово: ' + ITEM_DEFINITIONS[cooking.outputItemId].label : ' · жарится ' + Math.ceil(cooking.durationSeconds - cooking.progressSeconds) + ' с';
-      this.interaction = { id: fire.id, kind: 'campfire', label: 'Костёр · ур. ' + snapshot.level + (snapshot.lit ? ' · ' + Math.ceil(snapshot.fuelSeconds) + ' с' : ' · потух') + cookingLabel };
+      const levelProgress = snapshot.progressRequired === null ? '' : ' (' + Math.round(100 * snapshot.progress / snapshot.progressRequired) + '%)';
+      this.interaction = { id: fire.id, kind: 'campfire', label: 'Костёр · ур. ' + snapshot.level + levelProgress + (snapshot.lit ? ' · ' + Math.ceil(snapshot.fuelSeconds) + ' с' : ' · потух') + cookingLabel };
       return;
     }
     const bench = WORKBENCH_CONFIG;

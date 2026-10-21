@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
-import { CAMP_STORAGE, ITEM_DEFINITIONS, isTool, isConsumable, isMedical, itemLabel, type CampfireLevel, type WorkbenchLevel, type GameplaySnapshot, type InventorySnapshot } from '@forest-survival/shared';
+import { CAMP_STORAGE, ITEM_DEFINITIONS, isTool, isConsumable, isMedical, itemLabel, type WorkbenchLevel, type GameplaySnapshot, type InventorySnapshot } from '@forest-survival/shared';
 import CampfirePanel from './CampfirePanel.vue';
 import WorkbenchPanel from './WorkbenchPanel.vue';
 import CookingPotPanel from './CookingPotPanel.vue';
 import FarmPanel from './FarmPanel.vue';
 
 const props = defineProps<{ inventory: InventorySnapshot; storage: GameplaySnapshot['storage']; campfire: GameplaySnapshot['campfire']; workbench: GameplaySnapshot['workbench']; cookingPot: GameplaySnapshot['cookingPot']; farms: GameplaySnapshot['farms']; debugTools: boolean; note: string; focusWorkbench?: boolean; focusCookingPot?: boolean; focusFarm?: boolean }>();
-const emit = defineEmits<{ close: []; beginBuilding: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; consumeItem: [slot: number]; cookItem: [slot: number]; collectCooked: []; cookPot: [recipeId: string]; collectPot: []; plantFarm: [farmId: string]; harvestFarm: [farmId: string]; fuelFire: [slot: number]; upgradeFire: [expectedLevel: CampfireLevel]; buildWorkbench: []; upgradeWorkbench: [expectedLevel: WorkbenchLevel]; craftItem: [recipeId: string]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
+const emit = defineEmits<{ close: []; beginBuilding: []; selectSlot: [slot: number]; moveItem: [from: number, to: number]; dropItem: [slot: number]; consumeItem: [slot: number]; cookItem: [slot: number]; collectCooked: []; cookPot: [recipeId: string]; collectPot: []; plantFarm: [farmId: string]; harvestFarm: [farmId: string]; fuelFire: [slot: number]; buildWorkbench: []; upgradeWorkbench: [expectedLevel: WorkbenchLevel]; craftItem: [recipeId: string]; transferItem: [direction: 'deposit' | 'withdraw', slot: number]; debugUpgrade: [target: 'tool' | 'backpack', slot: number] }>();
 const dialog = useTemplateRef<HTMLDialogElement>('dialog');
 const selected = ref(props.inventory.activeSlot);
 const selectedStorage = ref(0);
@@ -53,7 +53,7 @@ onBeforeUnmount(() => dialog.value?.close());
       </template>
       <button v-else class="button secondary" @click="movingFrom = null">Отменить перенос</button>
     </div>
-    <CampfirePanel :campfire="campfire" :inventory="inventory" :selected="stack" :moving="movingFrom !== null" @fuel="emit('fuelFire', selected)" @cook="emit('cookItem', selected)" @collect="emit('collectCooked')" @upgrade="emit('upgradeFire', $event)" />
+    <CampfirePanel :campfire="campfire" :inventory="inventory" :selected="stack" :moving="movingFrom !== null" @fuel="emit('fuelFire', selected)" @cook="emit('cookItem', selected)" @collect="emit('collectCooked')" />
     <CookingPotPanel :pot="cookingPot" :inventory="inventory" :moving="movingFrom !== null" @cook="emit('cookPot', $event)" @collect="emit('collectPot')" />
     <FarmPanel :farms="farms" :inventory="inventory" :moving="movingFrom !== null" @plant="emit('plantFarm', $event)" @harvest="emit('harvestFarm', $event)" />
     <WorkbenchPanel :workbench="workbench" :inventory="inventory" :moving="movingFrom !== null" @build="emit('buildWorkbench')" @upgrade="emit('upgradeWorkbench', $event)" @craft="emit('craftItem', $event)" />

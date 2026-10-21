@@ -1,4 +1,4 @@
-import { CAMPFIRE_CONFIG, CAMPFIRE_LEVELS, CAMPFIRE_MAX_LEVEL, COOKING_RECIPES, FUEL_DEFINITIONS, isCookable, isFuel, nextCampfireUpgrade, type CampfireLevel, type CampfireSnapshot, type CommandResult, type CookableId, type CookingSnapshot, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
+import { CAMPFIRE_CONFIG, CAMPFIRE_LEVELS, CAMPFIRE_MAX_LEVEL, COOKING_RECIPES, FUEL_DEFINITIONS, isCookable, isFuel, type CampfireLevel, type CampfireSnapshot, type CommandResult, type CookableId, type CookingSnapshot, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
 import type { VisibilityQueries } from '../combat/TargetQuery';
 import type { Inventory } from '../items/Inventory';
 
@@ -7,6 +7,7 @@ const EPSILON = 1e-9;
 export class Campfire {
   private fuelSeconds: number = CAMPFIRE_CONFIG.initialFuelSeconds;
   private level: CampfireLevel = 1;
+  private progress = 0;
   private cooking: { input: CookableId; progress: number } | null = null;
   private cookedCount = 0;
 
@@ -47,13 +48,22 @@ export class Campfire {
     const stack = inventory.getStack(slot);
     if (!stack || stack.id !== expectedItemId) return { accepted: false, reason: 'stale' };
     if (!isFuel(stack.itemId)) return { accepted: false, reason: 'wrong-fuel' };
-    const seconds = FUEL_DEFINITIONS[stack.itemId].seconds;
-    if (this.fuelSeconds + seconds > CAMPFIRE_CONFIG.maxFuelSeconds + EPSILON) return { accepted: false, reason: 'fire-full' };
+    const fuel = FUEL_DEFINITIONS[stack.itemId];
     const consumed = inventory.consume(slot, expectedItemId);
     if (!consumed.accepted) return consumed;
-    this.fuelSeconds = Math.min(CAMPFIRE_CONFIG.maxFuelSeconds, this.fuelSeconds + seconds);
+    // A full fire still takes fuel: burn time is capped, level progress always counts (reference behaviour).
+    this.fuelSeconds = Math.min(CAMPFIRE_CONFIG.maxFuelSeconds, this.fuelSeconds + fuel.seconds);
+    this.progress += fuel.progress;
+    for (let required = CAMPFIRE_LEVELS[this.level].progressToNext; required !== null && this.progress >= required; required = CAMPFIRE_LEVELS[this.level].progressToNext) {
+      this.progress -= required;
+      this.level = (this.level + 1) as CampfireLevel;
+    }
+    if (this.level === CAMPFIRE_MAX_LEVEL) this.progress = 0;
     return { accepted: true };
   }
+
+  get currentLevel(): CampfireLevel { return this.level; }
+  get mapHalfSize(): number { return CAMPFIRE_LEVELS[this.level].mapHalfSize; }
 
   startCooking(inventory: Inventory, slot: number, expectedItemId: string, player: PlayerSnapshot, visibility: VisibilityQueries): CommandResult {
     const access = this.access(player, visibility);
@@ -82,22 +92,8 @@ export class Campfire {
     return { accepted: true };
   }
 
-  upgrade(expectedLevel: number, inventory: Inventory, player: PlayerSnapshot, visibility: VisibilityQueries): CommandResult {
-    const access = this.access(player, visibility);
-    if (!access.accepted) return access;
-    if (!Number.isInteger(expectedLevel) || expectedLevel < 1 || expectedLevel > CAMPFIRE_MAX_LEVEL) return { accepted: false, reason: 'invalid' };
-    if (expectedLevel !== this.level) return { accepted: false, reason: 'stale' };
-    const next = nextCampfireUpgrade(this.level);
-    if (!next) return { accepted: false, reason: 'max-level' };
-    if (this.fuelSeconds <= 0) return { accepted: false, reason: 'fire-out' };
-    const spent = inventory.spendMaterials(next.cost);
-    if (!spent.accepted) return spent;
-    this.level = next.level;
-    return { accepted: true };
-  }
-
   snapshot(player: PlayerSnapshot, inReach: boolean): CampfireSnapshot {
-    return { id: CAMPFIRE_CONFIG.id, level: this.level, maxLevel: CAMPFIRE_MAX_LEVEL, zoneRadius: CAMPFIRE_LEVELS[this.level].safeRadius, nextUpgrade: nextCampfireUpgrade(this.level), position: { ...CAMPFIRE_CONFIG.position }, fuelSeconds: this.fuelSeconds, maxFuelSeconds: CAMPFIRE_CONFIG.maxFuelSeconds, secondsPerWood: CAMPFIRE_CONFIG.secondsPerWood, secondsPerCoal: CAMPFIRE_CONFIG.secondsPerCoal, lit: this.fuelSeconds > 0, safeRadius: this.fuelSeconds > 0 ? CAMPFIRE_LEVELS[this.level].safeRadius : 0, playerInside: this.contains(player.position), inReach, cooking: this.cookingSnapshot() };
+    return { id: CAMPFIRE_CONFIG.id, level: this.level, maxLevel: CAMPFIRE_MAX_LEVEL, zoneRadius: CAMPFIRE_LEVELS[this.level].safeRadius, progress: this.progress, progressRequired: CAMPFIRE_LEVELS[this.level].progressToNext, mapHalfSize: CAMPFIRE_LEVELS[this.level].mapHalfSize, position: { ...CAMPFIRE_CONFIG.position }, fuelSeconds: this.fuelSeconds, maxFuelSeconds: CAMPFIRE_CONFIG.maxFuelSeconds, secondsPerWood: CAMPFIRE_CONFIG.secondsPerWood, secondsPerCoal: CAMPFIRE_CONFIG.secondsPerCoal, lit: this.fuelSeconds > 0, safeRadius: this.fuelSeconds > 0 ? CAMPFIRE_LEVELS[this.level].safeRadius : 0, playerInside: this.contains(player.position), inReach, cooking: this.cookingSnapshot() };
   }
 
   private cookingSnapshot(): CookingSnapshot | null {

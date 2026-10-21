@@ -3,12 +3,13 @@ import { NEUTRAL_PLAYER_INPUT, SIMULATION_CONFIG, TEST_BERRY_BUSHES, TEST_CARROT
 import { Game } from '../core/Game';
 import { FakeScheduler } from '../core/FakeScheduler.test-helper';
 import { LocalSession } from './LocalSession';
+import { openWholeMap } from './OpenMap.test-helper';
 
 const resources: Array<{ destroy(): void }> = [];
 afterEach(() => { for (const resource of resources.splice(0)) resource.destroy(); });
 const bush = TEST_BERRY_BUSHES[0]!;
 function advance(session: LocalSession, frames: number) { for (let index = 0; index < frames; index++) session.step(SIMULATION_CONFIG.fixedStep); }
-async function setup() { const session = await LocalSession.create(); resources.push(session); session.start(); advance(session, 180); return session; }
+async function setup() { const session = openWholeMap(await LocalSession.create()); resources.push(session); session.start(); advance(session, 180); return session; }
 function berryStack(session: LocalSession): ItemStack { return session.getSnapshot().gameplay.inventory.slots.find((entry) => entry?.itemId === 'berries')!; }
 
 describe('survival loop with real local session', () => {

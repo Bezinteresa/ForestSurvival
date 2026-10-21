@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef } from 'vue';
-import { DIAGNOSTIC_SPEEDS, FARM_CONFIG, itemLabel, isConsumable, isCookable, isMedical, type CampfireLevel, type WorkbenchLevel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { requestLandscape, watchTouchPortrait } from './ui/orientation';
+import { DIAGNOSTIC_SPEEDS, FARM_CONFIG, itemLabel, isConsumable, isCookable, isMedical, type WorkbenchLevel, type CommandResult, type SessionSnapshot } from '@forest-survival/shared';
 import type { Game } from './game/core/Game';
 import type { InputState } from './game/input/InputState';
 import type { ControlStatus } from './game/input/BrowserInput';
@@ -77,6 +78,7 @@ function fail(cause: unknown): void {
 }
 
 async function start(): Promise<void> {
+  void requestLandscape();
   stop();
   error.value = '';
   showDebug.value = false;
@@ -152,7 +154,6 @@ function reportInventory(result?: CommandResult): void {
     'cooking-busy': 'Место готовки уже занято.',
     'nothing-cooked': 'Еда ещё не готова.',
     dead: 'Забег завершён.',
-    'fire-full': 'Нет места для всей порции топлива. Древесина сохранена.',
     'wrong-fuel': 'Для костра нужна древесина.',
     'fire-out': 'Сначала разожгите костёр.',
     'max-level': 'Максимальный уровень уже достигнут.',
@@ -226,13 +227,6 @@ function collectPot(): void {
   const expectedBatchId = gameplay.value?.cookingPot.cooking?.id;
   if (expectedBatchId) reportInventory(game?.sendCommand({ type: 'collect-pot', expectedBatchId, requestId: 'ui-' + (++requestNumber) }));
 }
-function upgradeFire(expectedLevel: CampfireLevel): void {
-  const result = game?.sendCommand({ type: 'upgrade-fire', expectedLevel, requestId: 'ui-' + (++requestNumber) });
-  reportInventory(result);
-  if (result?.reason === 'blocked') inventoryNote.value = 'Костёр закрыт препятствием.';
-  if (result?.reason === 'out-of-range') inventoryNote.value = 'Подойдите к костру.';
-  if (result?.reason === 'stale') inventoryNote.value = 'Уровень костра изменился. Проверьте новое улучшение.';
-}
 function buildWorkbench(): void {
   const result = game?.sendCommand({ type: 'build-workbench', requestId: 'ui-' + (++requestNumber) });
   reportInventory(result);
@@ -261,11 +255,17 @@ function updateSettings(value: ControlSettings): void {
   settingsNote.value = saveControlSettings(settingsStorage(), settings.value) ? 'Настройки сохранены.' : 'Настройки применены. Сохранение в этом браузере недоступно.';
 }
 
-onBeforeUnmount(() => { disposed = true; stop(); });
+// Phones play in landscape only: portrait shows a rotate prompt and pauses a running run.
+const touchPortrait = ref(false);
+const stopOrientationWatch = watchTouchPortrait((portrait) => { touchPortrait.value = portrait; });
+watch([touchPortrait, canPlay], ([portrait, playing]) => { if (portrait && playing) game?.pause(); });
+
+onBeforeUnmount(() => { disposed = true; stopOrientationWatch(); stop(); });
 </script>
 
 <template>
   <main class="prototype" :class="{ playing: active }">
+    <div v-if="touchPortrait" class="rotate-device" role="alert"><span aria-hidden="true">⟳</span><strong>Поверните телефон горизонтально</strong><p>Игра идёт только в горизонтальной ориентации.{{ active ? ' Забег поставлен на паузу.' : '' }}</p></div>
     <div ref="scene" class="scene" />
     <header class="topbar">
       <div class="brand"><span class="brand-mark" aria-hidden="true">▲</span><div><strong>FOREST SURVIVAL</strong><span>Ранний прототип</span></div></div>
@@ -297,7 +297,7 @@ onBeforeUnmount(() => { disposed = true; stop(); });
       <progress v-if="gameplay.attack.phase !== 'idle'" :value="gameplay.attack.progress" max="1" aria-label="Восстановление после удара" />
     </div>
     <TouchControls v-if="active && currentInput" :input="currentInput" :enabled="canPlay && !inventoryOpen && !buildingPlan" :camera-locked="controls.cameraLocked" :can-interact="canInteract" :interaction-label="interactionLabel" :primary-label="primaryLabel" @camera-lock="game?.toggleCameraLock(false)" @zoom="game?.zoom($event)" />
-    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :workbench="gameplay.workbench" :cooking-pot="gameplay.cookingPot" :farms="gameplay.farms" :focus-farm="gameplay.interaction?.kind === 'farm'" :focus-cooking-pot="gameplay.interaction?.kind === 'cooking-pot'" :focus-workbench="gameplay.interaction?.kind === 'workbench'" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @begin-building="beginBuilding" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @cook-item="cookItem" @collect-cooked="collectCooked" @cook-pot="cookPot" @collect-pot="collectPot" @plant-farm="plantFarm" @harvest-farm="harvestFarm" @fuel-fire="fuelFire" @upgrade-fire="upgradeFire" @build-workbench="buildWorkbench" @upgrade-workbench="upgradeWorkbench" @craft-item="craftItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
+    <InventoryPanel v-if="canPlay && inventoryOpen && gameplay" :inventory="gameplay.inventory" :storage="gameplay.storage" :campfire="gameplay.campfire" :workbench="gameplay.workbench" :cooking-pot="gameplay.cookingPot" :farms="gameplay.farms" :focus-farm="gameplay.interaction?.kind === 'farm'" :focus-cooking-pot="gameplay.interaction?.kind === 'cooking-pot'" :focus-workbench="gameplay.interaction?.kind === 'workbench'" :debug-tools="gameplay.debugTools" :note="inventoryNote" @close="game?.closeInventory()" @begin-building="beginBuilding" @select-slot="selectSlot" @move-item="moveItem" @drop-item="dropItem" @consume-item="consumeItem" @cook-item="cookItem" @collect-cooked="collectCooked" @cook-pot="cookPot" @collect-pot="collectPot" @plant-farm="plantFarm" @harvest-farm="harvestFarm" @fuel-fire="fuelFire" @build-workbench="buildWorkbench" @upgrade-workbench="upgradeWorkbench" @craft-item="craftItem" @transfer-item="transferItem" @debug-upgrade="debugUpgrade" />
     <CampBuildingPanel v-if="canPlay && buildingPlan && snapshot" :plan="buildingPlan" :preview="buildingPreview" :player="snapshot.player" :bed-count="snapshot.gameplay.bedIds.length" :note="inventoryNote" @change="changeBuilding" @place="placeBuilding" @cancel="cancelBuilding" />
     <PlayerStatus v-if="canPlay && snapshot" :vitals="snapshot.vitals" />
     <RunResult v-if="ended && snapshot" :vitals="snapshot.vitals" :clock="snapshot.clock" :elapsed="elapsed" @restart="start" @leave="stop" />

@@ -6,6 +6,7 @@ import { PhysicsWorld } from './PhysicsWorld';
 import { LocalSession } from '../session/LocalSession';
 import { Game } from '../core/Game';
 import { FakeScheduler } from '../core/FakeScheduler.test-helper';
+import { openWholeMap } from '../session/OpenMap.test-helper';
 
 const plan: BuildingPlan = { kind: 'storage', siteId: 'plot-1', rotation: 0 };
 const player: PlayerSnapshot = { id: 'player', position: { x: -2, y: 0.92, z: 3 }, grounded: true, yaw: 0 };
@@ -198,7 +199,7 @@ describe('construction with live Rapier and lifecycle', () => {
   });
 
   it('keeps preview mode from sending gameplay input while simulation continues; pause and destroy stay safe', async () => {
-    const session = await LocalSession.create(); resources.push(session);
+    const session = openWholeMap(await LocalSession.create()); resources.push(session);
     const scheduler = new FakeScheduler(), render = vi.fn();
     const game = new Game(session, { render, destroy: () => {} }, scheduler); resources.push(game);
     game.start(); game.toggleInventory(); game.setBuildingPlan(plan);

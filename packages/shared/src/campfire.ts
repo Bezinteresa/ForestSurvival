@@ -1,30 +1,26 @@
 import type { Vector3Data } from './index';
-import type { FuelId, MaterialCost } from './items';
+import type { FuelId } from './items';
 import type { CookingSnapshot } from './survival';
 
-export const FUEL_DEFINITIONS = { wood: { seconds: 30 }, coal: { seconds: 60 } } as const satisfies Record<FuelId, { seconds: number }>;
+/** seconds: burn time added (capped by the fire maximum); progress: points toward the next fire level, always counted. */
+export const FUEL_DEFINITIONS = { wood: { seconds: 30, progress: 1 }, coal: { seconds: 60, progress: 2 } } as const satisfies Record<FuelId, { seconds: number; progress: number }>;
 
 export type CampfireLevel = 1 | 2 | 3 | 4 | 5 | 6;
 export const CAMPFIRE_MAX_LEVEL: CampfireLevel = 6;
+/**
+ * As in the reference game, the fire levels up by burning fuel, not by buying a level.
+ * progressToNext: fuel points needed to leave this level; mapHalfSize: half-width of the explorable square.
+ */
 export const CAMPFIRE_LEVELS = {
-  1: { safeRadius: 5, cost: {} },
-  2: { safeRadius: 7, cost: { wood: 3, stone: 3 } },
-  3: { safeRadius: 9, cost: { wood: 3, stone: 3, scrap: 2 } },
-  4: { safeRadius: 11, cost: { wood: 3, stone: 3, scrap: 2 } },
-  5: { safeRadius: 13, cost: { wood: 3, stone: 3, scrap: 3 } },
-  6: { safeRadius: 15, cost: { wood: 3, stone: 3, scrap: 3 } },
-} as const satisfies Record<CampfireLevel, { safeRadius: number; cost: MaterialCost }>;
-
-export interface CampfireUpgrade {
-  readonly level: CampfireLevel;
-  readonly safeRadius: number;
-  readonly cost: MaterialCost;
-}
-
-export function nextCampfireUpgrade(level: CampfireLevel): CampfireUpgrade | null {
-  const next = level < CAMPFIRE_MAX_LEVEL ? (level + 1) as CampfireLevel : null;
-  return next ? { level: next, safeRadius: CAMPFIRE_LEVELS[next].safeRadius, cost: { ...CAMPFIRE_LEVELS[next].cost } } : null;
-}
+  1: { safeRadius: 5, progressToNext: 4, mapHalfSize: 13.5 },
+  2: { safeRadius: 7, progressToNext: 6, mapHalfSize: 14.8 },
+  3: { safeRadius: 9, progressToNext: 8, mapHalfSize: 16.1 },
+  4: { safeRadius: 11, progressToNext: 10, mapHalfSize: 17.4 },
+  5: { safeRadius: 13, progressToNext: 12, mapHalfSize: 18.6 },
+  6: { safeRadius: 15, progressToNext: null, mapHalfSize: 19.7 },
+} as const satisfies Record<CampfireLevel, { safeRadius: number; progressToNext: number | null; mapHalfSize: number }>;
+/** The fog boundary is a thin wall just outside the explorable square. */
+export const MAP_LIMIT_CONFIG = { thickness: 0.3, height: 3, length: 20 } as const;
 
 export const CAMPFIRE_CONFIG = {
   id: 'campfire',
@@ -46,7 +42,10 @@ export interface CampfireSnapshot {
   readonly maxLevel: CampfireLevel;
   /** Radius unlocked by the current level, retained while extinguished. */
   readonly zoneRadius: number;
-  readonly nextUpgrade: CampfireUpgrade | null;
+  /** Fuel points burned toward the next level; null requirement at the maximum level. */
+  readonly progress: number;
+  readonly progressRequired: number | null;
+  readonly mapHalfSize: number;
   readonly id: string;
   readonly position: Vector3Data;
   readonly fuelSeconds: number;

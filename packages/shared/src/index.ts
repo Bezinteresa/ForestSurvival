@@ -1,6 +1,5 @@
 import type { GameplaySnapshot } from './gameplay';
 import type { VitalsSnapshot } from './survival';
-import type { CampfireLevel } from './campfire';
 import type { WorldClockSnapshot } from './time';
 import type { WorkbenchLevel } from './crafting';
 import type { BuildingPlan } from './building';
@@ -72,7 +71,6 @@ export type SessionCommand = { readonly requestId: string } & (
   | { readonly type: 'fuel-fire'; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'cook-item'; readonly slot: number; readonly expectedItemId: string }
   | { readonly type: 'collect-cooked' }
-  | { readonly type: 'upgrade-fire'; readonly expectedLevel: CampfireLevel }
   | { readonly type: 'build-workbench' }
   | { readonly type: 'upgrade-workbench'; readonly expectedLevel: WorkbenchLevel }
   | { readonly type: 'craft-item'; readonly recipeId: string }
@@ -83,7 +81,7 @@ export type SessionCommand = { readonly requestId: string } & (
 export interface CommandResult {
   readonly accepted: boolean;
   readonly duplicate?: boolean;
-  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale' | 'satiated' | 'dead' | 'fire-full' | 'wrong-fuel' | 'fire-out' | 'max-level' | 'insufficient-materials' | 'station-required' | 'station-level' | 'already-built' | 'full-health' | 'not-cookable' | 'cooking-busy' | 'nothing-cooked' | 'wrong-seed' | 'farm-busy' | 'not-grown';
+  readonly reason?: 'paused' | 'busy' | 'empty-hand' | 'missing' | 'out-of-range' | 'blocked' | 'inventory-full' | 'invalid' | 'forbidden' | 'stale' | 'satiated' | 'dead' | 'wrong-fuel' | 'fire-out' | 'max-level' | 'insufficient-materials' | 'station-required' | 'station-level' | 'already-built' | 'full-health' | 'not-cookable' | 'cooking-busy' | 'nothing-cooked' | 'wrong-seed' | 'farm-busy' | 'not-grown';
 }
 
 export const SIMULATION_CONFIG = {

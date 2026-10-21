@@ -9,21 +9,15 @@ function queries() { return { hasLineOfSight: vi.fn(() => true), removeEntityCol
 function woodBag() { return new Inventory(5, [[0, { id: 'axe', itemId: 'axe', amount: 1 }], [1, { id: 'wood-a', itemId: 'wood', amount: 3 }], [2, { id: 'wood-b', itemId: 'wood', amount: 3 }]]); }
 
 describe('campfire fuel and protection', () => {
-  it('mixes coal and wood, preserving the whole item when its own portion does not fit', () => {
+  it('mixes coal and wood; a full fire still takes one item for level progress while burn time stays capped', () => {
     const fire = new Campfire();
     const bag = new Inventory(5, [[0, { id: 'coal', itemId: 'coal', amount: 3 }], [1, { id: 'wood', itemId: 'wood', amount: 2 }]]);
     const visibility = queries();
     expect(fire.addFuel(bag, 0, 'coal', player, visibility).accepted).toBe(true);
     expect(fire.addFuel(bag, 1, 'wood', player, visibility).accepted).toBe(true);
-    expect(fire.snapshot(player, true)).toMatchObject({ fuelSeconds: 150, secondsPerWood: 30, secondsPerCoal: 60 });
-    const before = bag.snapshot();
-    expect(fire.addFuel(bag, 0, 'coal', player, visibility).reason).toBe('fire-full');
-    expect(bag.snapshot()).toEqual(before);
-    fire.step(29.5);
-    expect(fire.addFuel(bag, 0, 'coal', player, visibility).reason).toBe('fire-full');
-    fire.step(0.5);
+    expect(fire.snapshot(player, true)).toMatchObject({ fuelSeconds: 150, secondsPerWood: 30, secondsPerCoal: 60, progress: 3, level: 1 });
     expect(fire.addFuel(bag, 0, 'coal', player, visibility).accepted).toBe(true);
-    expect(fire.snapshot(player, true).fuelSeconds).toBe(180);
+    expect(fire.snapshot(player, true)).toMatchObject({ fuelSeconds: 180, level: 2, progress: 1 });
     expect(bag.count('coal')).toBe(1);
     expect(bag.count('wood')).toBe(1);
   });
@@ -92,16 +86,10 @@ describe('campfire fuel and protection', () => {
     expect(fire.addFuel(bag, 2, 'wood-b', player, visibility).accepted).toBe(true);
     expect(fire.snapshot(player, true).fuelSeconds).toBe(180);
     expect(bag.count('wood')).toBe(2);
-    for (const burned of [0, 1, 28]) {
-      fire.step(burned);
-      const before = bag.snapshot();
-      expect(fire.addFuel(bag, 2, 'wood-b', player, visibility).reason).toBe('fire-full');
-      expect(bag.snapshot()).toEqual(before);
-    }
-    fire.step(1);
+    fire.step(10);
     expect(fire.addFuel(bag, 2, 'wood-b', player, visibility).accepted).toBe(true);
     expect(bag.count('wood')).toBe(1);
-    expect(fire.snapshot(player, true).fuelSeconds).toBe(180);
+    expect(fire.snapshot(player, true)).toMatchObject({ fuelSeconds: 180, level: 2, progress: 1 });
   });
 
   it('rejects stale slots, wrong fuel, distance, height and blocked access without changing either source', () => {

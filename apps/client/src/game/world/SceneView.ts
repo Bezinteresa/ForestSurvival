@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TEST_WORLD } from '@forest-survival/shared';
+import { MAP_LIMIT_CONFIG, TEST_WORLD } from '@forest-survival/shared';
 import { GameplayView } from './GameplayView';
 import { DayNightView } from './DayNightView';
 import { getCameraPlacement } from '../player/CameraController';
@@ -12,6 +12,8 @@ export class SceneView implements GameView {
   private readonly player = new THREE.Group();
   private readonly cameraObstacles: THREE.Object3D[] = [];
   private readonly trees = new Map<string, THREE.Group>();
+  private readonly fogWalls: THREE.Mesh[] = [];
+  private mapHalfSize = 0;
   private gameplayView: GameplayView | undefined;
   private dayNightView: DayNightView | undefined;
   get canvas(): HTMLCanvasElement { return this.renderer.domElement; }
@@ -55,6 +57,7 @@ export class SceneView implements GameView {
 
   render(frame: GameFrame): void {
     if (this.destroyed) return;
+    this.placeFogWalls(frame.gameplay.campfire.mapHalfSize);
     this.player.position.set(frame.playerPosition.x, frame.playerPosition.y, frame.playerPosition.z);
     this.player.rotation.y = frame.playerYaw;
     this.gameplayView?.update(frame);
@@ -107,6 +110,14 @@ export class SceneView implements GameView {
     this.renderer.domElement.remove();
   }
 
+  private placeFogWalls(halfSize: number): void {
+    if (halfSize === this.mapHalfSize) return;
+    this.mapHalfSize = halfSize;
+    const offset = halfSize + MAP_LIMIT_CONFIG.thickness / 2;
+    const positions = [[offset, 0], [-offset, 0], [0, offset], [0, -offset]] as const;
+    this.fogWalls.forEach((wall, index) => wall.position.set(positions[index]![0], MAP_LIMIT_CONFIG.height / 2, positions[index]![1]));
+  }
+
   private readonly resize = (): void => {
     if (this.destroyed) return;
     const width = Math.max(1, this.host.clientWidth);
@@ -132,6 +143,16 @@ export class SceneView implements GameView {
     clearing.position.y = 0.014;
     this.scene.add(clearing);
 
+    // Unexplored land is behind a fog wall until the campfire level opens it.
+    const fog = new THREE.MeshBasicMaterial({ color: 0xb9cbbf, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
+    for (const axis of ['x', 'x', 'z', 'z'] as const) {
+      const limit = MAP_LIMIT_CONFIG;
+      const wall = new THREE.Mesh(axis === 'x' ? new THREE.BoxGeometry(limit.thickness, limit.height, limit.length * 2) : new THREE.BoxGeometry(limit.length * 2, limit.height, limit.thickness), fog);
+      wall.name = 'map-limit';
+      this.scene.add(wall);
+      this.fogWalls.push(wall);
+      this.cameraObstacles.push(wall);
+    }
     for (const wall of TEST_WORLD.walls) {
       const mesh = this.mesh(new THREE.BoxGeometry(wall.halfSize.x * 2, wall.halfSize.y * 2, wall.halfSize.z * 2), wall.id.startsWith('border') ? 0x455544 : 0x8b7962);
       mesh.name = wall.id;

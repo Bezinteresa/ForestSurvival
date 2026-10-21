@@ -5,6 +5,7 @@ import { Game } from '../core/Game';
 import { FakeScheduler } from '../core/FakeScheduler.test-helper';
 import { PhysicsWorld } from '../world/PhysicsWorld';
 import { DEFAULT_CONTROL_SETTINGS } from '../input/ControlSettings';
+import { openWholeMap } from './OpenMap.test-helper';
 
 const resources: Array<{ destroy(): void }> = [];
 afterEach(() => { for (const resource of resources.splice(0)) resource.destroy(); });
@@ -17,7 +18,7 @@ function walk(session: LocalSession, x: number, z: number) {
   }
   throw new Error('Unreachable test point ' + x + ',' + z);
 }
-async function setup() { const session = await LocalSession.create(); resources.push(session); session.start(); advance(session, 180); return session; }
+async function setup() { const session = openWholeMap(await LocalSession.create()); resources.push(session); session.start(); advance(session, 180); return session; }
 let sequence = 0;
 function send(session: LocalSession, command: Omit<SessionCommand, 'requestId'> & Record<string, unknown>) { return session.sendCommand({ ...command, requestId: 'flow-' + (++sequence) } as SessionCommand); }
 function harvest(session: LocalSession, id: string) {

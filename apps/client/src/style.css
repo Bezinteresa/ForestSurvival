@@ -150,6 +150,9 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 .campfire-fuel { width: 100%; height: 8px; display: block; accent-color: #e6c677; }
 .campfire-upgrade { margin-top: 18px; padding-top: 14px; border-top: 1px solid #ffffff30; }
 .campfire-upgrade h4 { font-size: 13px; margin: 0; }
+.campfire-level { margin: 12px 0; }
+.campfire-level h4 { font-size: 13px; margin: 0 0 6px; color: #f0c46c; }
+.campfire-level progress { width: 100%; height: 10px; display: block; accent-color: #f0a84a; }
 .campfire-cooking { margin-top: 18px; padding-top: 14px; border-top: 1px solid #ffffff30; }
 .campfire-cooking h4 { font-size: 13px; margin: 0; }
 .campfire-cooking progress { width: 100%; height: 8px; display: block; margin: 0 0 12px; accent-color: #d9787a; }
@@ -182,3 +185,9 @@ h1 { margin: 0; font-size: clamp(36px, 4.5vw, 64px); line-height: 1.06; letter-s
 @media (max-height: 500px) { .camp-build-panel { top: 58px; max-height: calc(100svh - 70px); } .camp-build-map { max-height: 110px; } }
 
 .camp-build-map g text { fill: #0a160e; }
+
+/* Portrait phones: the whole screen asks to rotate; landscape is the only supported touch layout. */
+.rotate-device { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px; text-align: center; color: #eff4e9; background: #102017f2; }
+.rotate-device span { font-size: 56px; color: #d6e5a9; }
+.rotate-device strong { font-size: 20px; }
+.rotate-device p { margin: 0; max-width: 280px; color: #bdcbb4; font-size: 13px; line-height: 1.5; }

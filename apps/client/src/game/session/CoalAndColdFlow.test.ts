@@ -89,10 +89,8 @@ describe('coal and night cold with real local physics', () => {
     expect(session.getSnapshot().vitals).toEqual(before.vitals);
     const fuel = { type: 'fuel-fire' as const, slot: 2, expectedItemId: coal.id, requestId: 'second-coal' };
     expect(session.sendCommand(fuel).accepted).toBe(true);
-    const full = session.getSnapshot();
-    expect(session.sendCommand({ ...fuel, requestId: 'coal-does-not-fit' }).reason).toBe('fire-full');
-    expect(session.getSnapshot().gameplay.inventory).toEqual(full.gameplay.inventory);
-    expect(session.getSnapshot().gameplay.campfire.fuelSeconds).toBe(full.gameplay.campfire.fuelSeconds);
+    // Two coal give 4 level points: the fire reaches level 2 and opens more of the map.
+    expect(session.getSnapshot().gameplay.campfire).toMatchObject({ level: 2, progress: 0, mapHalfSize: 14.8, zoneRadius: 7 });
     advanceTo(session, 179.5);
     expect(session.sendCommand({ ...fuel, requestId: 'last-coal' }).accepted).toBe(true);
     expect(session.getSnapshot().gameplay.inventory.slots[2]).toBeNull();
@@ -182,7 +180,7 @@ describe('coal and night cold with real local physics', () => {
     expect(session.getSnapshot().gameplay.inventory.slots[2]?.amount).toBe(1);
     game.pause();
     session.start();
-    walkTo(session, 1.4, 8);
+    walkTo(session, 1.4, 10.6); // outside the level-2 warm zone (7 m) reached by the earlier coal
     expect(session.getSnapshot().gameplay.campfire.lit).toBe(true);
     expect(session.getSnapshot().gameplay.campfire.playerInside).toBe(false);
     expect(session.getSnapshot().vitals.cold.exposed).toBe(true);

@@ -1,5 +1,5 @@
 import type { Collider, KinematicCharacterController, RigidBody, World } from '@dimforge/rapier3d-compat';
-import { CAMPFIRE_CONFIG, WORKBENCH_CONFIG, ALL_BUILD_SITES, BUILDING_DEFINITIONS, buildingBox, type BuildingKind, type BoxDefinition } from '@forest-survival/shared';
+import { CAMPFIRE_LEVELS, MAP_LIMIT_CONFIG, CAMPFIRE_CONFIG, WORKBENCH_CONFIG, ALL_BUILD_SITES, BUILDING_DEFINITIONS, buildingBox, type BuildingKind, type BoxDefinition } from '@forest-survival/shared';
 import { CAMP_STORAGE, INVENTORY_CONFIG, PLAYER_CONFIG, SIMULATION_CONFIG, TEST_WORLD, TEST_MATERIAL_NODES, TRAINING_DUMMY, type PlayerSnapshot, type Vector3Data } from '@forest-survival/shared';
 
 type Rapier = typeof import('@dimforge/rapier3d-compat')['default'];
@@ -24,6 +24,8 @@ export interface DebugGeometry {
 
 export class PhysicsWorld {
   private readonly entityColliders = new Map<string, Collider>();
+  /** Fog boundary walls (+x, -x, +z, -z) that move outward as the campfire opens the map. */
+  private readonly mapLimits: Collider[] = [];
   private readonly player: RigidBody;
   private readonly playerCollider: Collider;
   private readonly controller: KinematicCharacterController;
@@ -52,6 +54,12 @@ export class PhysicsWorld {
     for (const box of TEST_WORLD.walls) {
       world.createCollider(rapier.ColliderDesc.cuboid(box.halfSize.x, box.halfSize.y, box.halfSize.z).setTranslation(box.position.x, box.position.y, box.position.z));
     }
+    const limit = MAP_LIMIT_CONFIG;
+    for (const axis of ['x', 'x', 'z', 'z'] as const) {
+      const halfSize = axis === 'x' ? { x: limit.thickness / 2, y: limit.height / 2, z: limit.length } : { x: limit.length, y: limit.height / 2, z: limit.thickness / 2 };
+      this.mapLimits.push(world.createCollider(rapier.ColliderDesc.cuboid(halfSize.x, halfSize.y, halfSize.z)));
+    }
+    this.setMapHalfSize(CAMPFIRE_LEVELS[1].mapHalfSize);
     for (const tree of TEST_WORLD.trees) {
       this.entityColliders.set(tree.id, world.createCollider(rapier.ColliderDesc.cylinder(tree.trunkHeight / 2, tree.radius).setTranslation(tree.position.x, tree.position.y + tree.trunkHeight / 2, tree.position.z)));
     }
@@ -113,6 +121,14 @@ export class PhysicsWorld {
     const ray = new this.rapier.Ray(from, { x: dx / distance, y: dy / distance, z: dz / distance });
     const ignored = targetId ? this.entityColliders.get(targetId) : undefined;
     return !this.world.castRay(ray, Math.max(0, distance - 0.01), true, this.rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, this.playerCollider, undefined, (collider) => collider.handle !== ignored?.handle);
+  }
+
+  setMapHalfSize(halfSize: number): void {
+    if (!Number.isFinite(halfSize) || halfSize <= 0) return;
+    const offset = halfSize + MAP_LIMIT_CONFIG.thickness / 2;
+    const y = MAP_LIMIT_CONFIG.height / 2;
+    const positions = [{ x: offset, y, z: 0 }, { x: -offset, y, z: 0 }, { x: 0, y, z: offset }, { x: 0, y, z: -offset }];
+    this.mapLimits.forEach((collider, index) => collider.setTranslation(positions[index]!));
   }
 
   removeEntityCollider(id: string): void {
